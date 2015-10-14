@@ -172,7 +172,6 @@ void task_mult()
         CHAN_OUT(digit, digit, SELF_OUT_CH(task_mult));
         TRANSITION_TO(task_mult);
     } else {
-        // TODO: do something about carry overflow? when carry > 0 here
         TRANSITION_TO(task_print);
     }
 }
