@@ -175,7 +175,7 @@ void task_mult()
     uint16_t p, carry;
     int digit;
 
-    blink(1, SEC_TO_CYCLES, LED1);
+    blink(1, SEC_TO_CYCLES / 4, LED1);
 
     digit = *CHAN_IN2(digit, CH(task_init, task_mult), SELF_IN_CH(task_mult));
     carry = *CHAN_IN2(carry, CH(task_init, task_mult), SELF_IN_CH(task_mult));
