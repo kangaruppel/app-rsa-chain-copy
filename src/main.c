@@ -12,7 +12,6 @@
 #ifdef CONFIG_LIBEDB_PRINTF
 #include <libedb/edb.h>
 #endif
-
 #include "pins.h"
 
 #ifdef CONFIG_LIBEDB_PRINTF
@@ -24,8 +23,8 @@
 #endif
 
 #define NUM_DIGITS       4 // 4 * 8 = 32-bit blocks
-#define REG_SIZE        8 // arithmetic ops take 8-bit args produce 16-bit result
-#define REG_MASK        0x00ff
+#define DIGIT_BITS       8 // arithmetic ops take 8-bit args produce 16-bit result
+#define DIGIT_MASK       0x00ff
 
 /** @brief Type large enough to store a product of two digits */
 typedef uint16_t digit_t;
@@ -195,8 +194,8 @@ void task_mult()
         }
     }
 
-    c = p >> REG_SIZE;
-    p &= REG_MASK;
+    c = p >> DIGIT_BITS;
+    p &= DIGIT_MASK;
 
     printf("mult: c=%x p=%x\r\n", c, p);
 
@@ -285,7 +284,7 @@ void task_normalize()
 
         s = m + borrow;
         if (p < s) {
-            p += 1 << REG_SIZE;
+            p += 1 << DIGIT_BITS;
             borrow = 1;
         } else {
             borrow = 0;
