@@ -27,6 +27,9 @@
 #define REG_SIZE        8 // arithmetic ops take 8-bit args produce 16-bit result
 #define REG_MASK        0x00ff
 
+/** @brief Type large enough to store a product of two digits */
+typedef uint16_t digit_t;
+
 #define LED1 (1 << 0)
 #define LED2 (1 << 1)
 
@@ -44,12 +47,12 @@ typedef enum {
 } task_t;
 
 struct msg_mult {
-    CHAN_FIELD_ARRAY(uint16_t, A, NUM_DIGITS);
-    CHAN_FIELD_ARRAY(uint16_t, B, NUM_DIGITS);
+    CHAN_FIELD_ARRAY(digit_t, A, NUM_DIGITS);
+    CHAN_FIELD_ARRAY(digit_t, B, NUM_DIGITS);
 };
 
 struct msg_modulus {
-    CHAN_FIELD_ARRAY(uint16_t, M, NUM_DIGITS);
+    CHAN_FIELD_ARRAY(digit_t, M, NUM_DIGITS);
 };
 
 struct msg_digit {
@@ -58,7 +61,7 @@ struct msg_digit {
 };
 
 struct msg_product {
-    CHAN_FIELD_ARRAY(uint16_t, product, NUM_DIGITS * 2);
+    CHAN_FIELD_ARRAY(digit_t, product, NUM_DIGITS * 2);
 };
 
 struct msg_next_task {
@@ -171,8 +174,8 @@ void task_init()
 void task_mult()
 {
     int i;
-    uint16_t a, b, c;
-    uint16_t p, carry;
+    digit_t a, b, c;
+    digit_t p, carry;
     int digit;
 
     blink(1, SEC_TO_CYCLES / 4, LED1);
@@ -270,7 +273,7 @@ void task_normalizable()
 void task_normalize()
 {
     int i;
-    uint16_t p, m, d, s;
+    digit_t p, m, d, s;
     unsigned borrow;
 
     printf("normalize\r\n");
@@ -322,7 +325,7 @@ void task_reduce()
 void task_print_product()
 {
     int i;
-    uint16_t p;
+    digit_t p;
     task_t next_task;
 
     printf("print: P=");
