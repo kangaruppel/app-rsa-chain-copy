@@ -84,6 +84,11 @@ CHANNEL(task_mult, task_print_product, msg_next_task);
 CHANNEL(task_normalizable, task_print_product, msg_next_task);
 CHANNEL(task_normalize, task_print_product, msg_next_task);
 
+// Test input
+static const uint8_t A[] = { 0x40, 0x30, 0x20, 0x10 };
+static const uint8_t B[] = { 0xB0, 0xA0, 0x90, 0x80 };
+static const uint8_t M[] = { 0x0D, 0x09, 0x05, 0x01 };
+
 void init()
 {
     WISP_init();
@@ -132,7 +137,6 @@ static void blink(unsigned count, uint32_t duration, unsigned leds)
 void task_init()
 {
     int i;
-    uint16_t d;
 
     printf("init\r\n");
 
@@ -141,23 +145,20 @@ void task_init()
     // test values
     printf("init: A=");
     for (i = NUM_DIGITS - 1; i >= 0; --i) {
-        d = (0x10 + (0x10 * i)) & REG_MASK;
-        CHAN_OUT(A[i], d, MC_OUT_CH(ch_mult_args, task_init, task_mult, task_print));
-        printf("%x ", d);
+        CHAN_OUT(A[i], A[NUM_DIGITS - 1 - i], MC_OUT_CH(ch_mult_args, task_init, task_mult, task_print));
+        printf("%x ", A[i]);
     }
     printf("\r\n");
     printf("init: B=");
     for (i = NUM_DIGITS - 1; i >= 0; --i) {
-        d = (0x80 + (0x10 * i)) & REG_MASK;
-        CHAN_OUT(B[i], d, MC_OUT_CH(ch_mult_args, task_init, task_mult, task_print));
-        printf("%x ", d);
+        CHAN_OUT(B[i], B[NUM_DIGITS - 1 - i], MC_OUT_CH(ch_mult_args, task_init, task_mult, task_print));
+        printf("%x ", B[i]);
     }
     printf("\r\n");
     printf("init: M=");
     for (i = NUM_DIGITS - 1; i >= 0; --i) {
-        d = (0x01 + (0x04 * i)) & REG_MASK; // 0x20: not normalizable, 0x04: normalizable
-        CHAN_OUT(M[i], d, MC_OUT_CH(ch_modulus, task_init, task_normalizable, task_normalize));
-        printf("%x ", d);
+        CHAN_OUT(M[i], M[NUM_DIGITS - 1 - i], MC_OUT_CH(ch_modulus, task_init, task_normalizable, task_normalize));
+        printf("%x ", M[i]);
     }
     printf("\r\n");
 
