@@ -249,7 +249,9 @@ void task_normalizable()
 
         printf("normalizable: p[%u]=%x m[%u]=%x\r\n", NUM_DIGITS + i, p, i, m);
 
-        if (p < m) {
+        if (p > m) {
+            break;
+        } else if (p < m) {
             normalizable = false;
             break;
         }
