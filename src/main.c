@@ -87,7 +87,7 @@ CHANNEL(task_normalize, task_print_product, msg_next_task);
 // Test input
 static const uint8_t A[] = { 0x40, 0x30, 0x20, 0x10 };
 static const uint8_t B[] = { 0xB0, 0xA0, 0x90, 0x80 };
-static const uint8_t M[] = { 0x0D, 0x09, 0x05, 0x01 };
+static const uint8_t M[] = { 0x0D, 0x49, 0x60, 0x01 };
 
 void init()
 {
@@ -270,17 +270,26 @@ void task_normalizable()
 void task_normalize()
 {
     int i;
-    uint16_t p, m, d;
+    uint16_t p, m, d, s;
+    unsigned borrow;
 
     printf("normalize\r\n");
 
-    for (i = NUM_DIGITS - 1; i >= 0; --i) {
+    borrow = 0;
+    for (i = 0; i < NUM_DIGITS; ++i) {
         p = *CHAN_IN1(product[NUM_DIGITS + i], MC_IN_CH(ch_product, task_mult, task_normalize));
         m = *CHAN_IN1(M[i], MC_IN_CH(ch_modulus, task_init, task_normalize));
 
-        // TODO: needs carry!
-        d = p - m;
-        printf("normalizable: p[%u]=%x m[%u]=%x d=%x\r\n", NUM_DIGITS + i, p, i, m, d);
+        s = m + borrow;
+        if (p < s) {
+            p += 1 << REG_SIZE;
+            borrow = 1;
+        } else {
+            borrow = 0;
+        }
+        d = p - s;
+
+        printf("normalize: p[%u]=%x m[%u]=%x b=%u d=%x\r\n", NUM_DIGITS + i, p, i, m, borrow, d);
 
         CHAN_OUT(product[NUM_DIGITS + i], d, MC_OUT_CH(ch_normalized_product, task_normalize,
                                               task_reduce, task_print_product));
