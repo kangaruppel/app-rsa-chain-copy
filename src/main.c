@@ -155,7 +155,7 @@ void task_init()
     printf("\r\n");
     printf("init: M=");
     for (i = NUM_DIGITS - 1; i >= 0; --i) {
-        d = (0x08 + (0x10 * i)) & REG_MASK;
+        d = (0x01 + (0x04 * i)) & REG_MASK; // 0x20: not normalizable, 0x04: normalizable
         CHAN_OUT(M[i], d, MC_OUT_CH(ch_modulus, task_init, task_normalizable, task_normalize));
         printf("%x ", d);
     }
@@ -217,6 +217,8 @@ void task_normalizable()
     unsigned p, m;
     bool normalizable = true;
 
+    printf("normalizable\r\n");
+
     // Variables:
     //   l: number of digits in the product (2 * NUM_DIGITS)
     //   k: number of digits in the modulus (NUM_DIGITS)
@@ -241,10 +243,12 @@ void task_normalizable()
     // product digits by (l-k) = NUM_DIGITS.
 
     for (i = NUM_DIGITS - 1; i >= 0; --i) {
-        p = *CHAN_IN1(product[i * 2], MC_IN_CH(ch_product, task_mult, task_normalizable));
+        p = *CHAN_IN1(product[NUM_DIGITS + i], MC_IN_CH(ch_product, task_mult, task_normalizable));
         m = *CHAN_IN1(M[i], MC_IN_CH(ch_modulus, task_init, task_normalizable));
 
-        if (p > m) {
+        printf("normalizable: p[%u]=%x m[%u]=%x\r\n", NUM_DIGITS + i, p, i, m);
+
+        if (p < m) {
             normalizable = false;
             break;
         }
@@ -255,8 +259,7 @@ void task_normalizable()
     if (normalizable) {
         TRANSITION_TO(task_normalize);
     } else {
-        CHAN_OUT(next_task, TASK_REDUCE, CH(task_normalizable, task_print_product));
-        TRANSITION_TO(task_print_product);
+        TRANSITION_TO(task_reduce);
     }
 }
 
@@ -266,12 +269,17 @@ void task_normalize()
     int i;
     uint16_t p, m, d;
 
+    printf("normalize\r\n");
+
     for (i = NUM_DIGITS - 1; i >= 0; --i) {
-        p = *CHAN_IN1(product[i * 2], MC_IN_CH(ch_product, task_mult, task_normalize));
+        p = *CHAN_IN1(product[NUM_DIGITS + i], MC_IN_CH(ch_product, task_mult, task_normalize));
         m = *CHAN_IN1(M[i], MC_IN_CH(ch_modulus, task_init, task_normalize));
 
+        // TODO: needs carry!
         d = p - m;
-        CHAN_OUT(product[i * 2], d, MC_OUT_CH(ch_normalized_product, task_normalize,
+        printf("normalizable: p[%u]=%x m[%u]=%x d=%x\r\n", NUM_DIGITS + i, p, i, m, d);
+
+        CHAN_OUT(product[NUM_DIGITS + i], d, MC_OUT_CH(ch_normalized_product, task_normalize,
                                               task_reduce, task_print_product));
     }
 
@@ -290,6 +298,8 @@ void task_normalize()
 void task_reduce()
 {
     blink(1, SEC_TO_CYCLES, LED2);
+
+    printf("reduce\r\n");
 
     // TODO: CHAN_IN2(product[], MC_IN_CH(ch_product, task_mult),
     //                           MC_IN_CH(ch_normalized_product, task_normalize));
