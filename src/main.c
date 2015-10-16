@@ -609,7 +609,8 @@ void task_reduce_add()
                                           task_reduce_subtract, task_print_product));
     }
 
-    CHAN_OUT(next_task, TASK_REF(task_reduce_subtract), CH(task_reduce_subtract, task_print_product));
+    CHAN_OUT(next_task, TASK_REF(task_reduce_subtract),
+            CH(task_reduce_add, task_print_product));
     TRANSITION_TO(task_print_product);
 }
 
