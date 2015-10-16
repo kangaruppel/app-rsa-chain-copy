@@ -574,7 +574,7 @@ void task_reduce_compare()
 
 void task_reduce_add()
 {
-    int i;
+    int i, j;
     digit_t p, m, c, r;
     unsigned d, offset;
 
@@ -595,11 +595,20 @@ void task_reduce_add()
                       MC_IN_CH(ch_product, task_mult, task_reduce_add),
                       MC_IN_CH(ch_normalized_product, task_normalize, task_reduce_add));
 
-        m = *CHAN_IN1(M[i - offset], MC_IN_CH(ch_modulus, task_init, task_reduce_add));
+        // Shifted index of the modulus digit
+        j = i - offset;
+
+        if (i < offset + NUM_DIGITS) {
+            m = *CHAN_IN1(M[j], MC_IN_CH(ch_modulus, task_init, task_reduce_add));
+        } else {
+            m = 0;
+            j = 0; // a bit ugly, we want 'nan', but ok, since for output only
+            // TODO: could break out of the loop in this case (after CHAN_OUT)
+        }
 
         r = c + p + m;
 
-        printf("reduce: add: p[%u]=%x m[%u]=%x c=%x r=%x\r\n", i, p, i - offset, m, c, r);
+        printf("reduce: add: p[%u]=%x m[%u]=%x c=%x r=%x\r\n", i, p, j, m, c, r);
 
         c = r >> DIGIT_BITS;
         r &= DIGIT_MASK;
