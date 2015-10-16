@@ -1,4 +1,6 @@
 #include <msp430.h>
+#undef N // conflicts with us
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -49,7 +51,7 @@ struct msg_mult {
 };
 
 struct msg_modulus {
-    CHAN_FIELD_ARRAY(digit_t, M, NUM_DIGITS);
+    CHAN_FIELD_ARRAY(digit_t, N, NUM_DIGITS);
 };
 
 struct msg_mult_digit {
@@ -120,7 +122,7 @@ CALL_CHANNEL(ch_print_product, msg_print);
 // Test input
 static const uint8_t A[] = { 0x40, 0x30, 0x20, 0x10 };
 static const uint8_t B[] = { 0xB0, 0xA0, 0x90, 0x80 };
-static const uint8_t M[] = { 0x80, 0x49, 0x60, 0x01 }; // see note below
+static const uint8_t N[] = { 0x80, 0x49, 0x60, 0x01 }; // see note below
 
 // NOTE: Restriction: M >= 0x80000000 (i.e. MSB set). To lift restriction need
 // to implement normalization: left shift until MSB is set, to reverse, right
@@ -192,11 +194,11 @@ void task_init()
         printf("%x ", B[i]);
     }
     printf("\r\n");
-    printf("init: M=");
+    printf("init: N=");
     for (i = 0; i < NUM_DIGITS; ++i) {
-        CHAN_OUT(M[NUM_DIGITS - 1 - i], M[i], MC_OUT_CH(ch_modulus, task_init,
+        CHAN_OUT(N[NUM_DIGITS - 1 - i], N[i], MC_OUT_CH(ch_modulus, task_init,
                  task_normalizable, task_normalize, task_reduce));
-        printf("%x ", M[i]);
+        printf("%x ", N[i]);
     }
     printf("\r\n");
 
@@ -286,7 +288,7 @@ void task_normalizable()
     for (i = NUM_DIGITS - 1; i >= 0; --i) {
         p = *CHAN_IN1(product[NUM_DIGITS + i],
                       MC_IN_CH(ch_product, task_mult, task_normalizable));
-        m = *CHAN_IN1(M[i], MC_IN_CH(ch_modulus, task_init, task_normalizable));
+        m = *CHAN_IN1(N[i], MC_IN_CH(ch_modulus, task_init, task_normalizable));
 
         printf("normalizable: p[%u]=%x m[%u]=%x\r\n", NUM_DIGITS + i, p, i, m);
 
@@ -326,7 +328,7 @@ void task_normalize()
     for (i = 0; i < NUM_DIGITS; ++i) {
         p = *CHAN_IN1(product[NUM_DIGITS + i],
                       MC_IN_CH(ch_product, task_mult, task_normalize));
-        m = *CHAN_IN1(M[i], MC_IN_CH(ch_modulus, task_init, task_normalize));
+        m = *CHAN_IN1(N[i], MC_IN_CH(ch_modulus, task_init, task_normalize));
 
         s = m + borrow;
         if (p < s) {
@@ -354,16 +356,16 @@ void task_normalize()
 
 void task_reduce_m_divisor()
 {
-    digit_t m[2]; // [1]=M[msd], [0]=M[msd-1]
+    digit_t m[2]; // [1]=N[msd], [0]=N[msd-1]
     digit_t m_div;
 
     blink(1, SEC_TO_CYCLES, LED2);
 
     printf("reduce: m divisor\r\n");
 
-    m[1]  = *CHAN_IN1(M[NUM_DIGITS - 1],
+    m[1]  = *CHAN_IN1(N[NUM_DIGITS - 1],
                       MC_IN_CH(ch_modulus, task_init, task_reduce_m_divisor));
-    m[0] = *CHAN_IN1(M[NUM_DIGITS - 2], MC_IN_CH(ch_modulus, task_init, task_m_divisor));
+    m[0] = *CHAN_IN1(N[NUM_DIGITS - 2], MC_IN_CH(ch_modulus, task_init, task_m_divisor));
 
     // Divisor, derived from modulus, for refining quotient guess into exact value
     m_div = ((m[1]<< DIGIT_BITS) + m[0]);
@@ -409,7 +411,7 @@ void task_reduce_quotient()
                               task_reduce_quotient));
     // NOTE: we asserted that NUM_DIGITS >= 2, so p[d-2] is safe
 
-    m_n = *CHAN_IN1(M[NUM_DIGITS - 1],
+    m_n = *CHAN_IN1(N[NUM_DIGITS - 1],
                     MC_IN_CH(ch_modulus, task_init, task_reduce_quotient));
 
     printf("reduce: quotient: m_n=%x p[d]=%x\r\n", m_n, p[2]);
@@ -498,7 +500,7 @@ void task_reduce_multiply()
         // then we would not have to zero out the MSDs
         p = c;
         if (i < offset + NUM_DIGITS) {
-            m = *CHAN_IN1(M[i - offset],
+            m = *CHAN_IN1(N[i - offset],
                           MC_IN_CH(ch_modulus, task_init, task_reduce_multiply));
             p += q * m;
         } else {
@@ -616,7 +618,7 @@ void task_reduce_add()
         j = i - offset;
 
         if (i < offset + NUM_DIGITS) {
-            m = *CHAN_IN1(M[j], MC_IN_CH(ch_modulus, task_init, task_reduce_add));
+            m = *CHAN_IN1(N[j], MC_IN_CH(ch_modulus, task_init, task_reduce_add));
         } else {
             m = 0;
             j = 0; // a bit ugly, we want 'nan', but ok, since for output only
