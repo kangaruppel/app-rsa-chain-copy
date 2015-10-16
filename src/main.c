@@ -348,14 +348,6 @@ void task_normalize()
         CHAN_OUT(product[NUM_DIGITS + i], d, CALL_CH(ch_print_product));
     }
 
-#if 0 // NOTE: we don't need to do that because: sync! it grabs the latest
-    // Copy the digits unaffected by the normalization
-    for (i = NUM_DIGITS - 1; i >= 0; --i) {
-        d = *CHAN_IN1(product[i], MC_IN_CH(task_mult, task_normalize));
-        CHAN_OUT(product[i], d, CH(task_normalize, task_reduce));
-    }
-#endif
-
     CHAN_OUT(next_task, TASK_REF(task_reduce_m_divisor), CALL_CH(ch_print_product));
     TRANSITION_TO(task_print_product);
 }
