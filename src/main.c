@@ -194,8 +194,8 @@ void task_init()
     printf("\r\n");
     printf("init: M=");
     for (i = 0; i < NUM_DIGITS; ++i) {
-        CHAN_OUT(M[NUM_DIGITS - 1 - i], M[i],
-                MC_OUT_CH(ch_modulus, task_init, task_normalizable, task_normalize, task_reduce));
+        CHAN_OUT(M[NUM_DIGITS - 1 - i], M[i], MC_OUT_CH(ch_modulus, task_init,
+                 task_normalizable, task_normalize, task_reduce));
         printf("%x ", M[i]);
     }
     printf("\r\n");
@@ -284,7 +284,8 @@ void task_normalizable()
     // product digits by (l-k) = NUM_DIGITS.
 
     for (i = NUM_DIGITS - 1; i >= 0; --i) {
-        p = *CHAN_IN1(product[NUM_DIGITS + i], MC_IN_CH(ch_product, task_mult, task_normalizable));
+        p = *CHAN_IN1(product[NUM_DIGITS + i],
+                      MC_IN_CH(ch_product, task_mult, task_normalizable));
         m = *CHAN_IN1(M[i], MC_IN_CH(ch_modulus, task_init, task_normalizable));
 
         printf("normalizable: p[%u]=%x m[%u]=%x\r\n", NUM_DIGITS + i, p, i, m);
@@ -323,7 +324,8 @@ void task_normalize()
 
     borrow = 0;
     for (i = 0; i < NUM_DIGITS; ++i) {
-        p = *CHAN_IN1(product[NUM_DIGITS + i], MC_IN_CH(ch_product, task_mult, task_normalize));
+        p = *CHAN_IN1(product[NUM_DIGITS + i],
+                      MC_IN_CH(ch_product, task_mult, task_normalize));
         m = *CHAN_IN1(M[i], MC_IN_CH(ch_modulus, task_init, task_normalize));
 
         s = m + borrow;
@@ -335,7 +337,8 @@ void task_normalize()
         }
         d = p - s;
 
-        printf("normalize: p[%u]=%x m[%u]=%x b=%u d=%x\r\n", NUM_DIGITS + i, p, i, m, borrow, d);
+        printf("normalize: p[%u]=%x m[%u]=%x b=%u d=%x\r\n",
+                NUM_DIGITS + i, p, i, m, borrow, d);
 
         CHAN_OUT(product[NUM_DIGITS + i], d,
                  MC_OUT_CH(ch_normalized_product, task_normalize,
@@ -366,7 +369,8 @@ void task_reduce_m_divisor()
 
     printf("reduce: m divisor\r\n");
 
-    m[1]  = *CHAN_IN1(M[NUM_DIGITS - 1], MC_IN_CH(ch_modulus, task_init, task_reduce_m_divisor));
+    m[1]  = *CHAN_IN1(M[NUM_DIGITS - 1],
+                      MC_IN_CH(ch_modulus, task_init, task_reduce_m_divisor));
     m[0] = *CHAN_IN1(M[NUM_DIGITS - 2], MC_IN_CH(ch_modulus, task_init, task_m_divisor));
 
     // Divisor, derived from modulus, for refining quotient guess into exact value
@@ -502,14 +506,16 @@ void task_reduce_multiply()
         // then we would not have to zero out the MSDs
         p = c;
         if (i < offset + NUM_DIGITS) {
-            m = *CHAN_IN1(M[i - offset], MC_IN_CH(ch_modulus, task_init, task_reduce_multiply));
+            m = *CHAN_IN1(M[i - offset],
+                          MC_IN_CH(ch_modulus, task_init, task_reduce_multiply));
             p += q * m;
         } else {
             m = 0;
             // TODO: could break out of the loop  in this case (after CHAN_OUT)
         }
 
-        printf("reduce: multiply: m[%u]=%x q=%x c=%x p[%u]=%x\r\n", i - offset, m, q, c, i, p);
+        printf("reduce: multiply: m[%u]=%x q=%x c=%x p[%u]=%x\r\n",
+               i - offset, m, q, c, i, p);
 
         c = p >> DIGIT_BITS;
         p &= DIGIT_MASK;
@@ -547,8 +553,10 @@ void task_reduce_compare()
                       // TODO: do we need 'ch_reduce_add_product' here? We do not if
                       // the 'task_reduce_subtract' overwrites all values written by
                       // 'task_reduce_add', which, I think, is the case.
-                      MC_IN_CH(ch_reduce_subtract_product, task_reduce_subtract, task_reduce_compare));
-        qm = *CHAN_IN1(product[i], MC_IN_CH(ch_qm, task_reduce_multiply, task_reduce_compare));
+                      MC_IN_CH(ch_reduce_subtract_product, task_reduce_subtract,
+                               task_reduce_compare));
+        qm = *CHAN_IN1(product[i],
+                       MC_IN_CH(ch_qm, task_reduce_multiply, task_reduce_compare));
 
         printf("reduce: compare: p[%u]=%x qm[%u]=%x\r\n", i, p, i, qm);
 
@@ -609,7 +617,8 @@ void task_reduce_add()
         p = *CHAN_IN3(product[i],
                       MC_IN_CH(ch_product, task_mult, task_reduce_add),
                       MC_IN_CH(ch_normalized_product, task_normalize, task_reduce_add),
-                      MC_IN_CH(ch_reduce_subtract_product, task_reduce_subtract, task_reduce_add));
+                      MC_IN_CH(ch_reduce_subtract_product,
+                               task_reduce_subtract, task_reduce_add));
 
         // Shifted index of the modulus digit
         j = i - offset;
@@ -646,7 +655,8 @@ void task_reduce_subtract()
 
     blink(1, BLINK_DURATION_TASK, LED2);
 
-    d = *CHAN_IN1(digit, MC_IN_CH(ch_reduce_digit, task_reduce_quotient, task_reduce_subtract));
+    d = *CHAN_IN1(digit, MC_IN_CH(ch_reduce_digit, task_reduce_quotient,
+                                  task_reduce_subtract));
 
     printf("reduce: subtract: d=%u\r\n", d);
 
@@ -668,7 +678,8 @@ void task_reduce_subtract()
                       MC_IN_CH(ch_normalized_product, task_normalize, task_reduce_subtract),
                       CH(task_reduce_add, task_reduce_subtract),
                       SELF_IN_CH(task_reduce_subtract));
-        qm = *CHAN_IN1(product[i], MC_IN_CH(ch_qm, task_reduce_multiply, task_reduce_subtract));
+        qm = *CHAN_IN1(product[i],
+                       MC_IN_CH(ch_qm, task_reduce_multiply, task_reduce_subtract));
 
         s = qm + borrow;
         if (p < s) {
