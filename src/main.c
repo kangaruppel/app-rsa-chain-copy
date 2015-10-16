@@ -661,7 +661,7 @@ void task_reduce_subtract()
                            task_reduce_quotient, task_print_product));
     }
 
-    if (d - NUM_DIGITS < NUM_DIGITS) {
+    if (d > NUM_DIGITS) {
         next_task = TASK_REDUCE_QUOTIENT;
     } else { // reduction finished
         next_task = TASK_INIT;
