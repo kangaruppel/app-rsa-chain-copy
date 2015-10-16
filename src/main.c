@@ -197,7 +197,9 @@ void task_init()
     printf("init: N=");
     for (i = 0; i < NUM_DIGITS; ++i) {
         CHAN_OUT(N[NUM_DIGITS - 1 - i], N[i], MC_OUT_CH(ch_modulus, task_init,
-                 task_reduce_normalizable, task_reduce_normalize, task_reduce));
+                 task_reduce_normalizable, task_reduce_normalize,
+                 task_reduce_m_divisor, task_reduce_quotient,
+                 task_reduce_multiply, task_reduce_add));
         printf("%x ", N[i]);
     }
     printf("\r\n");
