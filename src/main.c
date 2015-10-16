@@ -560,7 +560,7 @@ void task_reduce_compare()
 
     printf("reduce: compare: relation %c\r\n", relation);
 
-    if (relation < 0) { // P < Q*M
+    if (relation == '<') {
         TRANSITION_TO(task_reduce_add);
     } else {
         TRANSITION_TO(task_reduce_subtract);
