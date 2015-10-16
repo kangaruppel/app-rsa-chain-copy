@@ -398,15 +398,18 @@ void task_reduce_quotient()
     p[2] = *CHAN_IN3(product[d],
                      MC_IN_CH(ch_product, task_mult, task_reduce_quotient),
                      MC_IN_CH(ch_normalized_product, task_normalize, task_reduce_quotient),
-                     MC_IN_CH(ch_reduce_subtract_product, task_reduce_subtract, task_reduce_quotient));
+                     MC_IN_CH(ch_reduce_subtract_product, task_reduce_subtract,
+                              task_reduce_quotient));
     p[1] = *CHAN_IN3(product[d - 1],
                      MC_IN_CH(ch_product, task_mult, task_reduce_quotient),
                      MC_IN_CH(ch_normalized_product, task_normalize, task_reduce_quotient),
-                     MC_IN_CH(ch_reduce_subtract_product, task_reduce_subtract, task_reduce_quotient));
+                     MC_IN_CH(ch_reduce_subtract_product, task_reduce_subtract,
+                              task_reduce_quotient));
     p[0] = *CHAN_IN3(product[d - 2],
                      MC_IN_CH(ch_product, task_mult, task_reduce_quotient),
                      MC_IN_CH(ch_normalized_product, task_normalize, task_reduce_quotient),
-                     MC_IN_CH(ch_reduce_subtract_product, task_reduce_subtract, task_reduce_quotient));
+                     MC_IN_CH(ch_reduce_subtract_product, task_reduce_subtract,
+                              task_reduce_quotient));
     // NOTE: we asserted that NUM_DIGITS >= 2, so p[d-2] is safe
 
     m_n = *CHAN_IN1(M[NUM_DIGITS - 1],
