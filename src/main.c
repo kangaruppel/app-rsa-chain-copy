@@ -41,18 +41,6 @@ typedef uint16_t digit_t;
 // If you link-in wisp-base, then you have to define some symbols.
 uint8_t usrBank[USRBANK_SIZE];
 
-// TODO: this is app-specific, but a good candidate for genericizing
-// This pertains to the pattern of reusable tasks using a 'next task' value.
-typedef enum {
-    TASK_INIT,
-    TASK_NORMALIZABLE,
-    TASK_REDUCE_M_DIVISOR,
-    TASK_REDUCE_QUOTIENT,
-    TASK_REDUCE_COMPARE,
-    TASK_REDUCE_SUBTRACT,
-    // Not all tasks listed because only some are used as next task
-} task_enum_t;
-
 struct msg_mult {
     CHAN_FIELD_ARRAY(digit_t, A, NUM_DIGITS);
     CHAN_FIELD_ARRAY(digit_t, B, NUM_DIGITS);
@@ -85,7 +73,7 @@ struct msg_quotient {
 };
 
 struct msg_next_task {
-    CHAN_FIELD(task_enum_t, next_task);
+    CHAN_FIELD(const task_t*, next_task);
 };
 
 TASK(1, task_init)
@@ -266,7 +254,7 @@ void task_mult()
         CHAN_OUT(digit, digit, SELF_OUT_CH(task_mult));
         TRANSITION_TO(task_mult);
     } else {
-        CHAN_OUT(next_task, TASK_NORMALIZABLE, CH(task_mult, task_print_product));
+        CHAN_OUT(next_task, TASK_REF(task_normalizable), CH(task_mult, task_print_product));
         TRANSITION_TO(task_print_product);
     }
 }
@@ -362,7 +350,7 @@ void task_normalize()
     }
 #endif
 
-    CHAN_OUT(next_task, TASK_REDUCE_M_DIVISOR, CH(task_normalize, task_print_product));
+    CHAN_OUT(next_task, TASK_REF(task_reduce_m_divisor), CH(task_normalize, task_print_product));
     TRANSITION_TO(task_print_product);
 }
 
@@ -520,7 +508,7 @@ void task_reduce_multiply()
                            task_print_product));
     }
 
-    CHAN_OUT(next_task, TASK_REDUCE_COMPARE, CH(task_reduce_subtract, task_print_product));
+    CHAN_OUT(next_task, TASK_REF(task_reduce_compare), CH(task_reduce_subtract, task_print_product));
     TRANSITION_TO(task_print_product);
 }
 
@@ -621,7 +609,7 @@ void task_reduce_add()
                                           task_reduce_subtract, task_print_product));
     }
 
-    CHAN_OUT(next_task, TASK_REDUCE_SUBTRACT, CH(task_reduce_subtract, task_print_product));
+    CHAN_OUT(next_task, TASK_REF(task_reduce_subtract), CH(task_reduce_subtract, task_print_product));
     TRANSITION_TO(task_print_product);
 }
 
@@ -631,7 +619,6 @@ void task_reduce_subtract()
     int i;
     digit_t p, s, r, qm;
     unsigned d, borrow;
-    task_enum_t next_task;
 
     blink(1, BLINK_DURATION_TASK, LED2);
 
@@ -668,12 +655,13 @@ void task_reduce_subtract()
     }
 
     if (d > NUM_DIGITS) {
-        next_task = TASK_REDUCE_QUOTIENT;
+        CHAN_OUT(next_task, TASK_REF(task_reduce_quotient),
+                 CH(task_reduce_subtract, task_print_product));
     } else { // reduction finished
-        next_task = TASK_INIT;
+        CHAN_OUT(next_task, TASK_REF(task_init),
+                 CH(task_reduce_subtract, task_print_product));
     }
 
-    CHAN_OUT(next_task, next_task, CH(task_reduce_subtract, task_print_product));
     TRANSITION_TO(task_print_product);
 }
 
@@ -681,7 +669,7 @@ void task_print_product()
 {
     int i;
     digit_t p;
-    task_enum_t next_task;
+    const task_t* next_task;
 
     printf("print: P=");
     for (i = (NUM_DIGITS * 2) - 1; i >= 0; --i) {
@@ -697,38 +685,12 @@ void task_print_product()
     printf("\r\n");
 
     next_task = *CHAN_IN5(next_task, CH(task_mult, task_print_product),
-                                     CH(task_normalize, task_print_product),
-                                     CH(task_reduce_multiply, task_print_product),
-                                     CH(task_reduce_add, task_print_product),
-                                     CH(task_reduce_subtract, task_print_product));
+                                    CH(task_normalize, task_print_product),
+                                    CH(task_reduce_multiply, task_print_product),
+                                    CH(task_reduce_add, task_print_product),
+                                    CH(task_reduce_subtract, task_print_product));
 
-    // TODO: this is where first-class tasks would come in useful. Basically,
-    // any re-usable task would have this control flow branching.
-    // TODO: don't we already effectively support this? can't we pass a pointer
-    // variable to TRANSITION_TO?
-    switch (next_task) {
-        case TASK_NORMALIZABLE:
-            TRANSITION_TO(task_normalizable);
-            break;
-        case TASK_REDUCE_M_DIVISOR:
-            TRANSITION_TO(task_reduce_m_divisor);
-            break;
-        case TASK_REDUCE_QUOTIENT:
-            TRANSITION_TO(task_reduce_quotient);
-            break;
-        case TASK_REDUCE_COMPARE:
-            TRANSITION_TO(task_reduce_compare);
-            break;
-        case TASK_REDUCE_SUBTRACT:
-            TRANSITION_TO(task_reduce_subtract);
-            break;
-        case TASK_INIT:
-            TRANSITION_TO(task_init);
-            break;
-        default:
-            // TODO: ABORT
-            break;
-    }
+    transition_to(next_task);
 }
 
 ENTRY_TASK(task_init)
