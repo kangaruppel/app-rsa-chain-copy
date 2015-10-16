@@ -35,7 +35,7 @@ LFLAGS += \
 	-L $(LIBCHAIN_ROOT)/bld/gcc \
 	-L $(WISP_BASE_ROOT)/gcc \
 
-LIBS = \
+LIBS += \
     -lchain \
 	-lwisp-base \
 	-lm \
