@@ -44,6 +44,8 @@ uint8_t usrBank[USRBANK_SIZE];
 struct msg_mult {
     CHAN_FIELD_ARRAY(digit_t, A, NUM_DIGITS);
     CHAN_FIELD_ARRAY(digit_t, B, NUM_DIGITS);
+    CHAN_FIELD(unsigned, digit);
+    CHAN_FIELD(unsigned, carry);
 };
 
 struct msg_modulus {
@@ -88,11 +90,10 @@ TASK(9, task_reduce_add)
 TASK(10, task_reduce_subtract)
 TASK(11, task_print_product)
 
-CHANNEL(task_init, task_mult, msg_mult_digit);
+CHANNEL(task_init, task_mult, msg_mult);
 MULTICAST_CHANNEL(msg_modulus, ch_modulus, task_init,
                   task_normalizable, task_normalize,
                   task_reduce_m_divisor, task_reduce_quotient, task_reduce_multiply);
-MULTICAST_CHANNEL(msg_mult, ch_mult_args, task_init, task_mult, task_print_product);
 SELF_CHANNEL(task_mult, msg_mult_digit);
 MULTICAST_CHANNEL(msg_product, ch_product, task_mult,
                   task_normalizable, task_normalize,
@@ -191,13 +192,13 @@ void task_init()
     // test values
     printf("init: A=");
     for (i = 0; i < NUM_DIGITS; ++i) {
-        CHAN_OUT(A[NUM_DIGITS - 1 - i], A[i], MC_OUT_CH(ch_mult_args, task_init, task_mult, task_print));
+        CHAN_OUT(A[NUM_DIGITS - 1 - i], A[i], CH(task_init, task_mult));
         printf("%x ", A[i]);
     }
     printf("\r\n");
     printf("init: B=");
     for (i = 0; i < NUM_DIGITS; ++i) {
-        CHAN_OUT(B[NUM_DIGITS - 1 - i], B[i], MC_OUT_CH(ch_mult_args, task_init, task_mult, task_print));
+        CHAN_OUT(B[NUM_DIGITS - 1 - i], B[i], CH(task_init, task_mult));
         printf("%x ", B[i]);
     }
     printf("\r\n");
@@ -233,8 +234,8 @@ void task_mult()
     p = carry;
     for (i = 0; i < NUM_DIGITS; ++i) {
         if (digit - i >= 0 && digit - i < NUM_DIGITS) {
-            a = *CHAN_IN1(A[digit - i], MC_IN_CH(ch_mult_args, task_init, task_mult));
-            b = *CHAN_IN1(B[i], MC_IN_CH(ch_mult_args, task_init, task_mult));
+            a = *CHAN_IN1(A[digit - i], CH(task_init, task_mult));
+            b = *CHAN_IN1(B[i], CH(task_init, task_mult));
             p += a * b;
             printf("mult: i=%u a=%x b=%x p=%x\r\n", i, a, b, p);
         }
