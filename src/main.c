@@ -117,15 +117,13 @@ MULTICAST_CHANNEL(msg_product, ch_normalized_product, task_normalize,
                   task_reduce_quotient, task_reduce_compare,
                   task_reduce_add, task_reduce_subtract,
                   task_print_product);
-MULTICAST_CHANNEL(msg_product, ch_reduced_product, task_reduce_subtract,
-                  task_reduce_quotient,
-                  task_print_product);
 MULTICAST_CHANNEL(msg_product, ch_reduce_add_product, task_reduce_add,
                   task_reduce_subtract,
                   task_print_product);
 MULTICAST_CHANNEL(msg_product, ch_reduce_subtract_product, task_reduce_subtract,
-                  task_reduce_quotient,
+                  task_reduce_quotient, task_reduce_compare, task_reduce_add,
                   task_print_product);
+SELF_CHANNEL(task_reduce_subtract, msg_product);
 CHANNEL(task_mult, task_print_product, msg_next_task);
 CHANNEL(task_normalizable, task_print_product, msg_next_task);
 CHANNEL(task_normalize, task_print_product, msg_next_task);
@@ -409,15 +407,15 @@ void task_reduce_quotient()
     p[2] = *CHAN_IN3(product[d],
                      MC_IN_CH(ch_product, task_mult, task_reduce_quotient),
                      MC_IN_CH(ch_normalized_product, task_normalize, task_reduce_quotient),
-                     MC_IN_CH(ch_reduced_product, task_reduce_subtract, task_reduce_quotient));
+                     MC_IN_CH(ch_reduce_subtract_product, task_reduce_subtract, task_reduce_quotient));
     p[1] = *CHAN_IN3(product[d - 1],
                      MC_IN_CH(ch_product, task_mult, task_reduce_quotient),
                      MC_IN_CH(ch_normalized_product, task_normalize, task_reduce_quotient),
-                     MC_IN_CH(ch_reduced_product, task_reduce_subtract, task_reduce_quotient));
+                     MC_IN_CH(ch_reduce_subtract_product, task_reduce_subtract, task_reduce_quotient));
     p[0] = *CHAN_IN3(product[d - 2],
                      MC_IN_CH(ch_product, task_mult, task_reduce_quotient),
                      MC_IN_CH(ch_normalized_product, task_normalize, task_reduce_quotient),
-                     MC_IN_CH(ch_reduced_product, task_reduce_subtract, task_reduce_quotient));
+                     MC_IN_CH(ch_reduce_subtract_product, task_reduce_subtract, task_reduce_quotient));
     // NOTE: we asserted that NUM_DIGITS >= 2, so p[d-2] is safe
 
     m_n = *CHAN_IN1(M[NUM_DIGITS - 1],
@@ -542,9 +540,13 @@ void task_reduce_compare()
     // TODO: this loop might not have to go down to zero, but to NUM_DIGITS
     // TODO: consider adding number of digits to go along with the 'product' field
     for (i = NUM_DIGITS * 2 - 1; i >= 0; --i) {
-        p = *CHAN_IN2(product[i],
+        p = *CHAN_IN3(product[i],
                       MC_IN_CH(ch_product, task_mult, task_reduce_compare),
-                      MC_IN_CH(ch_normalized_product, task_normalize, task_reduce_compare));
+                      MC_IN_CH(ch_normalized_product, task_normalize, task_reduce_compare),
+                      // TODO: do we need 'ch_reduce_add_product' here? We do not if
+                      // the 'task_reduce_subtract' overwrites all values written by
+                      // 'task_reduce_add', which, I think, is the case.
+                      MC_IN_CH(ch_reduce_subtract_product, task_reduce_subtract, task_reduce_compare));
         qm = *CHAN_IN1(product[i], MC_IN_CH(ch_qm, task_reduce_multiply, task_reduce_compare));
 
         printf("reduce: compare: p[%u]=%x qm[%u]=%x\r\n", i, p, i, qm);
@@ -591,9 +593,10 @@ void task_reduce_add()
     // TODO: coult transform this loop into a self-edge
     c = 0;
     for (i = offset; i < 2 * NUM_DIGITS; ++i) {
-        p = *CHAN_IN2(product[i],
+        p = *CHAN_IN3(product[i],
                       MC_IN_CH(ch_product, task_mult, task_reduce_add),
-                      MC_IN_CH(ch_normalized_product, task_normalize, task_reduce_add));
+                      MC_IN_CH(ch_normalized_product, task_normalize, task_reduce_add),
+                      MC_IN_CH(ch_reduce_subtract_product, task_reduce_subtract, task_reduce_add));
 
         // Shifted index of the modulus digit
         j = i - offset;
@@ -638,10 +641,11 @@ void task_reduce_subtract()
     // TODO: could transform this loop into a self-edge
     borrow = 0;
     for (i = d - NUM_DIGITS; i < 2 * NUM_DIGITS; ++i) {
-        p = *CHAN_IN3(product[i],
+        p = *CHAN_IN4(product[i],
                       MC_IN_CH(ch_product, task_mult, task_reduce_subtract),
                       MC_IN_CH(ch_normalized_product, task_normalize, task_reduce_subtract),
-                      MC_IN_CH(ch_reduce_add_product, task_reduce_add, task_reduce_subtract));
+                      MC_IN_CH(ch_reduce_add_product, task_reduce_add, task_reduce_subtract),
+                      SELF_IN_CH(task_reduce_subtract));
         qm = *CHAN_IN1(product[i], MC_IN_CH(ch_qm, task_reduce_multiply, task_reduce_subtract));
 
         s = qm + borrow;
@@ -659,6 +663,7 @@ void task_reduce_subtract()
         CHAN_OUT(product[i], r,
                  MC_OUT_CH(ch_reduce_subtract_product, task_reduce_subtract,
                            task_reduce_quotient, task_print_product));
+        CHAN_OUT(product[i], r, SELF_OUT_CH(task_reduce_subtract));
     }
 
     if (d > NUM_DIGITS) {
