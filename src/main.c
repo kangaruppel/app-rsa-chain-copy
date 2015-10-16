@@ -656,7 +656,7 @@ void task_reduce_subtract()
 
         CHAN_OUT(product[i], r,
                  MC_OUT_CH(ch_reduce_subtract_product, task_reduce_subtract,
-                           task_reduce_quotient, task_print_product));
+                           task_reduce_quotient, task_reduce_compare, task_print_product));
         CHAN_OUT(product[i], r, SELF_OUT_CH(task_reduce_subtract));
     }
 
