@@ -369,17 +369,20 @@ void task_normalize()
 
 void task_reduce_m_divisor()
 {
-    digit_t m_n, m_n_minus_1, m_div;
+    digit_t m[2]; // [1]=M[msd], [0]=M[msd-1]
+    digit_t m_div;
 
     blink(1, SEC_TO_CYCLES, LED2);
 
-    printf("reduce: step: m divisor\r\n");
+    printf("reduce: m divisor\r\n");
 
-    m_n = *CHAN_IN1(M[NUM_DIGITS - 1], MC_IN_CH(ch_modulus, task_init, task_reduce_m_divisor));
-    m_n_minus_1 = *CHAN_IN1(M[NUM_DIGITS - 2], MC_IN_CH(ch_modulus, task_init, task_m_divisor));
+    m[1]  = *CHAN_IN1(M[NUM_DIGITS - 1], MC_IN_CH(ch_modulus, task_init, task_reduce_m_divisor));
+    m[0] = *CHAN_IN1(M[NUM_DIGITS - 2], MC_IN_CH(ch_modulus, task_init, task_m_divisor));
 
     // Divisor, derived from modulus, for refining quotient guess into exact value
-    m_div = ((m_n << DIGIT_BITS) + m_n_minus_1);
+    m_div = ((m[1]<< DIGIT_BITS) + m[0]);
+
+    printf("reduce: m divisor: m[1]=%x m[0]=%x m_div=%x\r\n", m[1], m[0], m_div);
 
     CHAN_OUT(m_div, m_div, CH(task_reduce_m_divisor, task_reduce_quotient));
 
@@ -394,7 +397,7 @@ void task_reduce_quotient()
     unsigned d;
     digit_t p[3]; // [2]=p[d], [1]=p[d-1], [0]=p[d-2]
     digit_t m_n, m_div, q;
-    uint32_t p_q; // must hold at least 3 digits
+    uint32_t qm, p_q; // must hold at least 3 digits
 
     blink(1, BLINK_DURATION_TASK, LED2);
 
@@ -420,6 +423,8 @@ void task_reduce_quotient()
     m_n = *CHAN_IN1(M[NUM_DIGITS - 1],
                     MC_IN_CH(ch_modulus, task_init, task_reduce_quotient));
 
+    printf("reduce: quotient: m_n=%x p[d]=%x\r\n", m_n, p[2]);
+
     // Choose an initial guess for quotient
     if (p[2] == m_n) {
         q = (1 << DIGIT_BITS) - 1;
@@ -427,17 +432,29 @@ void task_reduce_quotient()
         q = ((p[2] << DIGIT_BITS) + p[1]) / m_n;
     }
 
-    m_div = *CHAN_IN1(m_div, CH(task_reduce_m_divisor, task_reduce_quotient));
+    printf("reduce: quotient: q0=%x\r\n", q);
 
     // Refine quotient guess
+
+    // NOTE: An alternative to composing the digits into one variable, is to
+    // have a loop that does the comparison digit by digit to implement the
+    // condition of the while loop below.
     p_q = ((uint32_t)p[2] << (2 * DIGIT_BITS)) + (p[1] << DIGIT_BITS) + p[0];
 
-    printf("reduce: quotient: p[d]=%x p[d-1]=%x p[d-2]=%x\r\n", p[2], p[1], p[2]);
-    printf("reduce: quotient: m_n=%x m_div=%x p_q=%x%x q0=%x\r\n",
-           m_n, m_div, q, (uint16_t)(p_q >> 16), (uint16_t)(p_q & 0xffff));
+    printf("reduce: quotient: p[d]=%x p[d-1]=%x p[d-2]=%x p_q=%x%x\r\n",
+           p[2], p[1], p[0], (uint16_t)((p_q >> 16) & 0xffff), (uint16_t)(p_q & 0xffff));
 
-    while ((uint32_t)m_div * q > p_q)
+    m_div = *CHAN_IN1(m_div, CH(task_reduce_m_divisor, task_reduce_quotient));
+
+    printf("reduce: quotient: m_div=%x q0=%x\r\n", m_div, q);
+
+    q++;
+    do {
         q--;
+        qm = (uint32_t)m_div * q;
+        printf("reduce: quotient: q=%x qm=%x%x\r\n", q,
+              (uint16_t)((qm >> 16) & 0xffff), (uint16_t)(qm & 0xffff));
+    } while (qm > p_q);
 
     // This is still not the final quotient, it may be off by one,
     // which we determine and fix in the 'compare' and 'add' steps.
@@ -449,7 +466,7 @@ void task_reduce_quotient()
                                  task_reduce_multiply, task_reduce_add,
                                  task_reduce_subtract));
 
-    d++;
+    d--;
     CHAN_OUT(digit, d, SELF_OUT_CH(task_reduce_quotient));
 
     TRANSITION_TO(task_reduce_multiply);
@@ -460,7 +477,7 @@ void task_reduce_multiply()
 {
     int i;
     digit_t p, q, m;
-    unsigned c, d, p_d;
+    unsigned c, d, offset;
 
     blink(1, BLINK_DURATION_TASK, LED2);
 
@@ -468,32 +485,56 @@ void task_reduce_multiply()
                                   task_reduce_quotient, task_reduce_multiply));
     q = *CHAN_IN1(quotient, CH(task_reduce_quotient, task_reduce_multiply));
 
-    printf("reduce: multiply: d=%x q=%x", d, q);
+    printf("reduce: multiply: d=%x q=%x\r\n", d, q);
+
+    // As part of this task, we also perform the left-shifting of the q*m
+    // product by radix^(digit-NUM_DIGITS), where NUM_DIGITS is the number
+    // of digits in the modulus. We implement this by fetching the digits
+    // of number being reduced at that offset.
+    //
+    // TODO: The paper seems to have the offset as (2*NUM_DIGITS-1 - NUM_DIGITS = 3):
+    //       "x = x - qmb^(i-k)" but this seems odd, should the offset be NUM_DIGITS?
+    //       With offset=3, the latter stages of reduce have off-by-one errors.
+    //       Verify what is going on.
+    offset = d - NUM_DIGITS;
+    printf("reduce: multiply: offset=%u\r\n", offset);
 
     // TODO: could convert the loop into a self-edge
     c = 0;
-    for (i = 0; i < NUM_DIGITS; ++i) {
-        m = *CHAN_IN1(M[i],
-                      MC_IN_CH(ch_modulus, task_init, task_reduce_multiply));
+    for (i = 0; i < 2 * NUM_DIGITS; ++i) {
 
-        p = c + q * m;
+        // This condition creates the left-shifted zeros.
+        // TODO: consider adding number of digits to go along with the 'product' field,
+        // then we would not have to zero out the MSDs
+        // TODO: This should be simplifiable: really, it's one loop body + one edge,
+        //       Is the zero-ing avoidable?
+        if (i < offset) {
+            p = 0;
+            printf("reduce: multiply: p[%u]=0\r\n", i);
+        } else if (i >= offset && i < offset + NUM_DIGITS) {
 
-        // As part of this task, we also perform the shifting of the q*m
-        // product by radix^(digit-NUM_DIGITS), where NUM_DIGITS is the number
-        // of digits in the modulus. We implement this by fetching the digits
-        // of number being reduced at that offset.
-        p_d = i + (d - NUM_DIGITS);
+            m = *CHAN_IN1(M[i - offset], MC_IN_CH(ch_modulus, task_init, task_reduce_multiply));
+            p = c + q * m;
 
-        printf("reduce: multiply: i=%u m=%x q=%x c=%x p[%u]=%x\r\n",
-               i, m, q, c, p_d, p);
+            printf("reduce: multiply: m[%u]=%x q=%x c=%x p[%u]=%x\r\n", i - offset, m, q, c, i, p);
 
-        c = p >> DIGIT_BITS;
-        p &= DIGIT_MASK;
+            c = p >> DIGIT_BITS;
+            p &= DIGIT_MASK;
 
-        CHAN_OUT(product[p_d], p,
-                 MC_OUT_CH(ch_qm, task_reduce_multiply,
-                           task_reduce_compare, task_reduce_subtract,
-                           task_print_product));
+            CHAN_OUT(product[i], p,
+                     MC_OUT_CH(ch_qm, task_reduce_multiply,
+                               task_reduce_compare, task_reduce_subtract,
+                               task_print_product));
+        } else {
+            p = c;
+            c = 0;
+            printf("reduce: multiply: p[%u]=%x\r\n", i, p);
+
+            CHAN_OUT(product[i], p,
+                     MC_OUT_CH(ch_qm, task_reduce_multiply,
+                               task_reduce_compare, task_reduce_subtract,
+                               task_print_product));
+        }
     }
 
     CHAN_OUT(next_task, TASK_REDUCE_COMPARE, CH(task_reduce_subtract, task_print_product));
@@ -504,7 +545,7 @@ void task_reduce_compare()
 {
     int i;
     digit_t p, d, qm;
-    int relation = 0;
+    char relation = '=';
 
     blink(1, BLINK_DURATION_TASK, LED2);
 
@@ -515,24 +556,25 @@ void task_reduce_compare()
 
     // TODO: could transform this loop into a self-edge
     // TODO: this loop might not have to go down to zero, but to NUM_DIGITS
+    // TODO: consider adding number of digits to go along with the 'product' field
     for (i = NUM_DIGITS * 2 - 1; i >= 0; --i) {
         p = *CHAN_IN2(product[i],
                       MC_IN_CH(ch_product, task_mult, task_reduce_compare),
                       MC_IN_CH(ch_normalized_product, task_normalize, task_reduce_compare));
         qm = *CHAN_IN1(product[i], MC_IN_CH(ch_qm, task_reduce_multiply, task_reduce_compare));
 
+        printf("reduce: compare: p[%u]=%x qm[%u]=%x\r\n", i, p, i, qm);
+
         if (p > qm) {
-            relation = 1;
+            relation = '>';
             break;
         } else if (p < qm) {
-            relation = -1;
+            relation = '<';
             break;
         }
-
-        printf("reduce: compare: p[%u]=%x qm[%u]=%x\r\n", i, p, i, qm);
     }
 
-    printf("reduce: compare: relation=%d\r\n", relation);
+    printf("reduce: compare: relation %c\r\n", relation);
 
     if (relation < 0) { // P < Q*M
         TRANSITION_TO(task_reduce_add);
@@ -550,7 +592,7 @@ void task_reduce_add()
 {
     int i;
     digit_t p, m, c, r;
-    unsigned d, m_d;
+    unsigned d, offset;
 
     blink(1, BLINK_DURATION_TASK, LED2);
 
@@ -559,19 +601,21 @@ void task_reduce_add()
 
     printf("reduce: add: d=%u\r\n", d);
 
+    // Part of this task is to shift modulus by radix^(digit - NUM_DIGITS)
+    offset = d - NUM_DIGITS;
+
     // TODO: coult transform this loop into a self-edge
     c = 0;
-    for (i = NUM_DIGITS; i < 2 * NUM_DIGITS; ++i) {
+    for (i = offset; i < 2 * NUM_DIGITS; ++i) {
         p = *CHAN_IN2(product[i],
                       MC_IN_CH(ch_product, task_mult, task_reduce_add),
                       MC_IN_CH(ch_normalized_product, task_normalize, task_reduce_add));
-        // We shift modulus by radix^(digit - NUM_DIGITS)
-        m_d = (d - NUM_DIGITS) + (i - NUM_DIGITS);
-        m = *CHAN_IN1(M[m_d], MC_IN_CH(ch_modulus, task_init, task_reduce_add));
+
+        m = *CHAN_IN1(M[i - offset], MC_IN_CH(ch_modulus, task_init, task_reduce_add));
 
         r = c + p + m;
 
-        printf("reduce: add: p[%u]=%x m[%u]=%x c=%x r=%x\r\n", i, p, m_d, m, c, r);
+        printf("reduce: add: p[%u]=%x m[%u]=%x c=%x r=%x\r\n", i, p, i - offset, m, c, r);
 
         c = r >> DIGIT_BITS;
         r &= DIGIT_MASK;
@@ -600,7 +644,7 @@ void task_reduce_subtract()
 
     // TODO: could transform this loop into a self-edge
     borrow = 0;
-    for (i = NUM_DIGITS; i < 2 * NUM_DIGITS; ++i) {
+    for (i = d - NUM_DIGITS; i < 2 * NUM_DIGITS; ++i) {
         p = *CHAN_IN3(product[i],
                       MC_IN_CH(ch_product, task_mult, task_reduce_subtract),
                       MC_IN_CH(ch_normalized_product, task_normalize, task_reduce_subtract),
@@ -624,7 +668,7 @@ void task_reduce_subtract()
                            task_reduce_quotient, task_print_product));
     }
 
-    if (d <= NUM_DIGITS) {
+    if (d - NUM_DIGITS < NUM_DIGITS) {
         next_task = TASK_REDUCE_QUOTIENT;
     } else { // reduction finished
         next_task = TASK_INIT;
