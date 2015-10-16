@@ -143,7 +143,10 @@ CHANNEL(task_reduce_subtract, task_print_product, msg_next_task);
 // Test input
 static const uint8_t A[] = { 0x40, 0x30, 0x20, 0x10 };
 static const uint8_t B[] = { 0xB0, 0xA0, 0x90, 0x80 };
-static const uint8_t M[] = { 0x0D, 0x49, 0x60, 0x01 };
+static const uint8_t M[] = { 0x80, 0x49, 0x60, 0x01 }; // NOTE: M >= 0x80000000 (i.e. MSB set)
+                                                       // to lift restriction need to implement
+                                                       // normalization: left shift until MSB is set,
+                                                       // to reverse, right shift the remainder.
 
 void init()
 {
