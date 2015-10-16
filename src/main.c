@@ -90,17 +90,17 @@ struct msg_next_task {
     CHAN_FIELD(task_t, next_task);
 };
 
-TASK(0, task_init)
-TASK(1, task_mult)
-TASK(2, task_normalizable)
-TASK(3, task_normalize)
-TASK(4, task_reduce_m_divisor)
-TASK(5, task_reduce_quotient)
-TASK(6, task_reduce_multiply)
-TASK(7, task_reduce_compare)
-TASK(8, task_reduce_add)
-TASK(9, task_reduce_subtract)
-TASK(10, task_print_product)
+TASK(1, task_init)
+TASK(2, task_mult)
+TASK(3, task_normalizable)
+TASK(4, task_normalize)
+TASK(6, task_reduce_m_divisor)
+TASK(6, task_reduce_quotient)
+TASK(7, task_reduce_multiply)
+TASK(8, task_reduce_compare)
+TASK(9, task_reduce_add)
+TASK(10, task_reduce_subtract)
+TASK(11, task_print_product)
 
 CHANNEL(task_init, task_mult, msg_mult_digit);
 MULTICAST_CHANNEL(msg_modulus, ch_modulus, task_init,
