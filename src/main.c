@@ -491,50 +491,34 @@ void task_reduce_multiply()
     // product by radix^(digit-NUM_DIGITS), where NUM_DIGITS is the number
     // of digits in the modulus. We implement this by fetching the digits
     // of number being reduced at that offset.
-    //
-    // TODO: The paper seems to have the offset as (2*NUM_DIGITS-1 - NUM_DIGITS = 3):
-    //       "x = x - qmb^(i-k)" but this seems odd, should the offset be NUM_DIGITS?
-    //       With offset=3, the latter stages of reduce have off-by-one errors.
-    //       Verify what is going on.
     offset = d - NUM_DIGITS;
     printf("reduce: multiply: offset=%u\r\n", offset);
 
     // TODO: could convert the loop into a self-edge
     c = 0;
-    for (i = 0; i < 2 * NUM_DIGITS; ++i) {
+    for (i = offset; i < 2 * NUM_DIGITS; ++i) {
 
         // This condition creates the left-shifted zeros.
         // TODO: consider adding number of digits to go along with the 'product' field,
         // then we would not have to zero out the MSDs
-        // TODO: This should be simplifiable: really, it's one loop body + one edge,
-        //       Is the zero-ing avoidable?
-        if (i < offset) {
-            p = 0;
-            printf("reduce: multiply: p[%u]=0\r\n", i);
-        } else if (i >= offset && i < offset + NUM_DIGITS) {
-
+        p = c;
+        if (i < offset + NUM_DIGITS) {
             m = *CHAN_IN1(M[i - offset], MC_IN_CH(ch_modulus, task_init, task_reduce_multiply));
-            p = c + q * m;
-
-            printf("reduce: multiply: m[%u]=%x q=%x c=%x p[%u]=%x\r\n", i - offset, m, q, c, i, p);
-
-            c = p >> DIGIT_BITS;
-            p &= DIGIT_MASK;
-
-            CHAN_OUT(product[i], p,
-                     MC_OUT_CH(ch_qm, task_reduce_multiply,
-                               task_reduce_compare, task_reduce_subtract,
-                               task_print_product));
+            p += q * m;
         } else {
-            p = c;
-            c = 0;
-            printf("reduce: multiply: p[%u]=%x\r\n", i, p);
-
-            CHAN_OUT(product[i], p,
-                     MC_OUT_CH(ch_qm, task_reduce_multiply,
-                               task_reduce_compare, task_reduce_subtract,
-                               task_print_product));
+            m = 0;
+            // TODO: could break out of the loop  in this case (after CHAN_OUT)
         }
+
+        printf("reduce: multiply: m[%u]=%x q=%x c=%x p[%u]=%x\r\n", i - offset, m, q, c, i, p);
+
+        c = p >> DIGIT_BITS;
+        p &= DIGIT_MASK;
+
+        CHAN_OUT(product[i], p,
+                 MC_OUT_CH(ch_qm, task_reduce_multiply,
+                           task_reduce_compare, task_reduce_subtract,
+                           task_print_product));
     }
 
     CHAN_OUT(next_task, TASK_REDUCE_COMPARE, CH(task_reduce_subtract, task_print_product));
