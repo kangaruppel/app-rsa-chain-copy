@@ -3,10 +3,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-// #define CONFIG_LIBEDB_PRINTF
-#define CONFIG_LIBMSPCONSOLE_PRINTF
-
 #include <wisp-base.h>
+
 #include <libchain/chain.h>
 
 #ifdef CONFIG_LIBEDB_PRINTF
