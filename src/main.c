@@ -202,20 +202,20 @@ void task_init()
 
     // test values
     printf("init: A=");
-    for (i = NUM_DIGITS - 1; i >= 0; --i) {
-        CHAN_OUT(A[i], A[NUM_DIGITS - 1 - i], MC_OUT_CH(ch_mult_args, task_init, task_mult, task_print));
+    for (i = 0; i < NUM_DIGITS; ++i) {
+        CHAN_OUT(A[NUM_DIGITS - 1 - i], A[i], MC_OUT_CH(ch_mult_args, task_init, task_mult, task_print));
         printf("%x ", A[i]);
     }
     printf("\r\n");
     printf("init: B=");
-    for (i = NUM_DIGITS - 1; i >= 0; --i) {
-        CHAN_OUT(B[i], B[NUM_DIGITS - 1 - i], MC_OUT_CH(ch_mult_args, task_init, task_mult, task_print));
+    for (i = 0; i < NUM_DIGITS; ++i) {
+        CHAN_OUT(B[NUM_DIGITS - 1 - i], B[i], MC_OUT_CH(ch_mult_args, task_init, task_mult, task_print));
         printf("%x ", B[i]);
     }
     printf("\r\n");
     printf("init: M=");
-    for (i = NUM_DIGITS - 1; i >= 0; --i) {
-        CHAN_OUT(M[i], M[NUM_DIGITS - 1 - i],
+    for (i = 0; i < NUM_DIGITS; ++i) {
+        CHAN_OUT(M[NUM_DIGITS - 1 - i], M[i],
                 MC_OUT_CH(ch_modulus, task_init,
                           task_normalizable, task_normalize, task_reduce));
         printf("%x ", M[i]);
