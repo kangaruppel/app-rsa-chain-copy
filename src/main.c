@@ -51,7 +51,7 @@ typedef enum {
     TASK_REDUCE_COMPARE,
     TASK_REDUCE_SUBTRACT,
     // Not all tasks listed because only some are used as next task
-} task_t;
+} task_enum_t;
 
 struct msg_mult {
     CHAN_FIELD_ARRAY(digit_t, A, NUM_DIGITS);
@@ -85,7 +85,7 @@ struct msg_quotient {
 };
 
 struct msg_next_task {
-    CHAN_FIELD(task_t, next_task);
+    CHAN_FIELD(task_enum_t, next_task);
 };
 
 TASK(1, task_init)
@@ -631,7 +631,7 @@ void task_reduce_subtract()
     int i;
     digit_t p, s, r, qm;
     unsigned d, borrow;
-    task_t next_task;
+    task_enum_t next_task;
 
     blink(1, BLINK_DURATION_TASK, LED2);
 
@@ -681,7 +681,7 @@ void task_print_product()
 {
     int i;
     digit_t p;
-    task_t next_task;
+    task_enum_t next_task;
 
     printf("print: P=");
     for (i = (NUM_DIGITS * 2) - 1; i >= 0; --i) {
