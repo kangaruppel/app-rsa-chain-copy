@@ -156,6 +156,7 @@ CHANNEL(task_pad, task_mult_block, msg_block);
 SELF_CHANNEL(task_pad, msg_block_offset);
 MULTICAST_CHANNEL(msg_base, ch_base, task_pad, task_mult_block, task_square_base);
 SELF_CHANNEL(task_exp, msg_exponent);
+CHANNEL(task_exp, task_mult_block_get_result, msg_exponent);
 CHANNEL(task_mult_block_get_result, task_mult_block, msg_block);
 MULTICAST_CHANNEL(msg_base, ch_square_base, task_square_base_get_result,
                   task_square_base, task_mult_block);
@@ -329,16 +330,13 @@ void task_exp()
     e = *CHAN_IN2(E, CH(task_pad, task_exp), SELF_IN_CH(task_exp));
     printf("exp: e=%x\r\n", e);
 
-    if (e == 0) {
-        printf("exp: block done\r\n");
-        blink(1, BLINK_BLOCK_DONE, LED1 | LED2);
-        TRANSITION_TO(task_pad);
-    }
+    // ASSERT: e > 0
 
     multiply = e & 0x1;
 
     e >>= 1;
     CHAN_OUT(E, e, SELF_OUT_CH(task_exp));
+    CHAN_OUT(E, e, CH(task_exp, task_mult_block_get_result));
 
     if (multiply) {
         TRANSITION_TO(task_mult_block);
@@ -375,18 +373,27 @@ void task_mult_block()
 void task_mult_block_get_result()
 {
     int i;
-    digit_t m;
+    digit_t m, e;
 
     printf("mult block get results: block: ");
-    for (i = 0; i < NUM_DIGITS; ++i) {
+    for (i = NUM_DIGITS - 1; i >= 0; --i) { // reverse for printing
         m = *CHAN_IN1(product[i], RET_CH(ch_mult_mod));
         printf("%x ", m);
         CHAN_OUT(block[i], m, CH(task_mult_block_get_result, task_mult_block));
     }
     printf("\r\n");
 
-    // TODO: on last iteration we don't need to square base
-    TRANSITION_TO(task_square_base);
+    e = *CHAN_IN1(E, CH(task_exp, task_mult_block_get_result));
+
+    // On last iteration we don't need to square base
+    if (e > 0) {
+        TRANSITION_TO(task_square_base);
+    } else {
+        printf("mult block get results: block done\r\n");
+        blink(1, BLINK_BLOCK_DONE, LED1 | LED2);
+        TRANSITION_TO(task_pad);
+    }
+
 }
 
 // TODO: is this task necessary? it seems to act as nothing but a proxy
