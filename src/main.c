@@ -297,7 +297,7 @@ void task_pad()
 
     if (block_offset + NUM_DIGITS > message_length) {
         printf("pad: message done\r\n");
-        blink(1, BLINK_BLOCK_DONE, LED1 | LED2);
+        blink(1, BLINK_MESSAGE_DONE, LED1 | LED2);
         TRANSITION_TO(task_init);
     }
 
