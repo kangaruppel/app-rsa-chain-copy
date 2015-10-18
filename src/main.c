@@ -211,7 +211,7 @@ static const uint8_t A[] = { 0x40, 0x30, 0x20, 0x10 };
 static const uint8_t B[] = { 0xB0, 0xA0, 0x90, 0x80 };
 
 static const uint8_t N[] = { 0x80, 0x49, 0x60, 0x01 }; // modulus (see note below)
-static const digit_t E = 0x03; // encryption exponent
+static const digit_t E = 0x11; // encryption exponent
 
 // padded message blocks (padding is the first byte (0x01), rest is payload)
 static const uint8_t M[] = {
