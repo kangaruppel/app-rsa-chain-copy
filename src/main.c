@@ -43,6 +43,16 @@ typedef uint16_t digit_t;
 // If you link-in wisp-base, then you have to define some symbols.
 uint8_t usrBank[USRBANK_SIZE];
 
+struct msg_mult_mod_args {
+    CHAN_FIELD_ARRAY(digit_t, A, NUM_DIGITS);
+    CHAN_FIELD_ARRAY(digit_t, B, NUM_DIGITS);
+    CHAN_FIELD(const task_t*, next_task);
+};
+
+struct msg_mult_mod_result {
+    CHAN_FIELD_ARRAY(digit_t, R, NUM_DIGITS);
+};
+
 struct msg_mult {
     CHAN_FIELD_ARRAY(digit_t, A, NUM_DIGITS);
     CHAN_FIELD_ARRAY(digit_t, B, NUM_DIGITS);
@@ -60,6 +70,10 @@ struct msg_modulus {
     CHAN_FIELD_ARRAY(digit_t, N, NUM_DIGITS);
 };
 
+struct msg_exponent {
+    CHAN_FIELD(digit_t, E);
+};
+
 struct msg_mult_digit {
     CHAN_FIELD(unsigned, digit);
     CHAN_FIELD(unsigned, carry);
@@ -67,6 +81,19 @@ struct msg_mult_digit {
 
 struct msg_product {
     CHAN_FIELD_ARRAY(digit_t, product, NUM_DIGITS * 2);
+};
+
+struct msg_base {
+    CHAN_FIELD_ARRAY(digit_t, base, NUM_DIGITS * 2);
+};
+
+struct msg_block {
+    CHAN_FIELD_ARRAY(digit_t, block, NUM_DIGITS * 2);
+};
+
+struct msg_base_block {
+    CHAN_FIELD_ARRAY(digit_t, base, NUM_DIGITS * 2);
+    CHAN_FIELD_ARRAY(digit_t, block, NUM_DIGITS * 2);
 };
 
 struct msg_divisor {
@@ -92,20 +119,35 @@ struct msg_print {
 };
 
 TASK(1, task_init)
-TASK(2, task_mult)
-TASK(3, task_reduce)
-TASK(4, task_reduce_digits)
-TASK(5, task_reduce_normalizable)
-TASK(6, task_reduce_normalize)
-TASK(7, task_reduce_n_divisor)
-TASK(8, task_reduce_quotient)
-TASK(9, task_reduce_multiply)
-TASK(10, task_reduce_compare)
-TASK(11, task_reduce_add)
-TASK(12, task_reduce_subtract)
-TASK(13, task_print_product)
+TASK(2, task_exp)
+TASK(3, task_mult_block)
+TASK(4, task_mult_block_get_result)
+TASK(5, task_square_base)
+TASK(6,  task_square_base_get_result)
+TASK(7, task_mult_mod)
+TASK(8, task_mult)
+TASK(9, task_reduce) // TODO: this does not need to be callable, since mult_mod is
+TASK(10, task_reduce_digits)
+TASK(11, task_reduce_normalizable)
+TASK(12, task_reduce_normalize)
+TASK(13, task_reduce_n_divisor)
+TASK(14, task_reduce_quotient)
+TASK(15, task_reduce_multiply)
+TASK(16, task_reduce_compare)
+TASK(17, task_reduce_add)
+TASK(18, task_reduce_subtract)
+TASK(19, task_print_product)
 
-CHANNEL(task_init, task_mult, msg_mult);
+MULTICAST_CHANNEL(msg_base, ch_base, task_init, task_square_base, task_mult_block);
+CHANNEL(task_init, task_mult_block, msg_block);
+CHANNEL(task_init, task_exp, msg_exponent);
+SELF_CHANNEL(task_exp, msg_exponent);
+CHANNEL(task_mult_block_get_result, task_mult_block, msg_block);
+MULTICAST_CHANNEL(msg_base, ch_square_base, task_square_base_get_result,
+                  task_square_base, task_mult_block);
+CALL_CHANNEL(ch_mult_mod, msg_mult_mod_args);
+RET_CHANNEL(ch_mult_mod, msg_product);
+CHANNEL(task_mult_mod, task_mult, msg_mult);
 MULTICAST_CHANNEL(msg_modulus, ch_modulus, task_reduce,
                   task_reduce_normalizable, task_reduce_normalize,
                   task_reduce_n_divisor, task_reduce_quotient, task_reduce_multiply);
@@ -146,8 +188,8 @@ static const uint8_t A[] = { 0x40, 0x30, 0x20, 0x10 };
 static const uint8_t B[] = { 0xB0, 0xA0, 0x90, 0x80 };
 
 static const uint8_t N[] = { 0x80, 0x49, 0x60, 0x01 }; // modulus (see note below)
-static const uint8_t E[] = { 0x03, 0x4d, 0x10, 0x37 }; // key
-static const uint8_t M[] = { 0x81, 0x92, 0x4A, 0xC0 }; // padded message block
+static const digit_t E = 0x03; // encryption exponent
+static const uint8_t M[] = { 0x00, 0x92, 0x4A, 0xC0 }; // padded message block
 
 // NOTE: Restriction: M >= 0x80000000 (i.e. MSB set). To lift restriction need
 // to implement normalization: left shift until MSB is set, to reverse, right
@@ -206,6 +248,7 @@ void task_init()
 
     blink(1, SEC_TO_CYCLES * 2, LED1 | LED2);
 
+#if 0
     // test values
     printf("init: A=");
     for (i = 0; i < NUM_DIGITS; ++i) {
@@ -219,6 +262,7 @@ void task_init()
         printf("%x ", B[i]);
     }
     printf("\r\n");
+#endif
 
 
     printf("init: N=");
@@ -230,17 +274,153 @@ void task_init()
 
     printf("init: M=");
     for (i = 0; i < NUM_DIGITS; ++i) {
-        CHAN_OUT(M[NUM_DIGITS - 1 - i], M[i], CALL_CH(ch_reduce));
+        CHAN_OUT(base[NUM_DIGITS - 1 - i], M[i],
+                 MC_OUT_CH(ch_base, task_init, task_mult_block, task_square_base));
         printf("%x ", M[i]);
     }
     printf("\r\n");
 
-    CHAN_OUT(digit, 0, CH(task_init, task_mult));
-    CHAN_OUT(carry, 0, CH(task_init, task_mult));
+    CHAN_OUT(E, E, CH(task_init, task_exp));
 
-    //TRANSITION_TO(task_mult);
-    CHAN_OUT(next_task, TASK_REF(task_init), CALL_CH(ch_reduce));
-    TRANSITION_TO(task_reduce);
+    CHAN_OUT(block[0], 1, CH(task_init, task_mult_block));
+    for (i = 1; i < NUM_DIGITS; ++i)
+        CHAN_OUT(block[i], 0, CH(task_init, task_mult_block));
+
+    TRANSITION_TO(task_exp);
+}
+
+void task_exp()
+{
+    digit_t e;
+    bool multiply;
+
+    e = *CHAN_IN2(E, CH(task_init, task_exp), SELF_IN_CH(task_exp));
+    printf("exp: e=%x\r\n", e);
+
+    if (e == 0) {
+        printf("exp: exponentiation done\r\n");
+        TRANSITION_TO(task_init);
+    }
+
+    multiply = e & 0x1;
+
+    e >>= 1;
+    CHAN_OUT(E, e, SELF_OUT_CH(task_exp));
+
+    if (multiply) {
+        TRANSITION_TO(task_mult_block);
+    } else {
+        TRANSITION_TO(task_square_base);
+    }
+}
+
+// TODO: is this task strictly necessary? it only makes a call. Can this call
+// be rolled into task_exp?
+void task_mult_block()
+{
+    int i;
+    digit_t b, m;
+
+    printf("mult block\r\n");
+
+    // TODO: pass args to mult: message * base
+    for (i = 0; i < NUM_DIGITS; ++i) {
+        b = *CHAN_IN2(base[i], MC_IN_CH(ch_base, task_init, task_mult_block),
+                               MC_IN_CH(ch_square_base, task_square_base_get_result, task_mult_block));
+        CHAN_OUT(A[i], b, CALL_CH(ch_mult_mod));
+
+        m = *CHAN_IN2(block[i], CH(task_init, task_mult_block),
+                                  CH(task_mult_block_get_result, task_mult_block));
+        CHAN_OUT(B[i], m, CALL_CH(ch_mult_mod));
+
+        printf("mult block: a[%u]=%x b[%u]=%x\r\n", i, b, i, m);
+    }
+    CHAN_OUT(next_task, TASK_REF(task_mult_block_get_result), CALL_CH(ch_mult_mod));
+    TRANSITION_TO(task_mult_mod);
+}
+
+void task_mult_block_get_result()
+{
+    int i;
+    digit_t m;
+
+    printf("mult block get results\r\n");
+
+    for (i = 0; i < NUM_DIGITS; ++i) {
+        m = *CHAN_IN1(product[i], RET_CH(ch_mult_mod));
+        printf("mult block get results: base[%u]=%x\r\n", i, m);
+        CHAN_OUT(block[i], m, CH(task_mult_block_get_result, task_mult_block));
+    }
+    TRANSITION_TO(task_square_base);
+}
+
+// TODO: is this task necessary? it seems to act as nothing but a proxy
+// TODO: is there opportunity for special zero-copy optimization here
+void task_square_base()
+{
+    int i;
+    digit_t b;
+
+    printf("square base\r\n");
+
+    for (i = 0; i < NUM_DIGITS; ++i) {
+        b = *CHAN_IN2(base[i], MC_IN_CH(ch_base, task_init, task_square_base),
+                               MC_IN_CH(ch_square_base, task_square_base_get_result, task_square_base));
+        CHAN_OUT(A[i], b, CALL_CH(ch_mult_mod));
+        CHAN_OUT(B[i], b, CALL_CH(ch_mult_mod));
+
+        printf("square base: b[%u]=%x\r\n", i, b);
+    }
+    CHAN_OUT(next_task, TASK_REF(task_square_base_get_result), CALL_CH(ch_mult_mod));
+    TRANSITION_TO(task_mult_mod);
+}
+
+// TODO: is there opportunity for special zero-copy optimization here
+void task_square_base_get_result()
+{
+    int i;
+    digit_t b;
+
+    printf("square base get result\r\n");
+
+    for (i = 0; i < NUM_DIGITS; ++i) {
+        b = *CHAN_IN1(product[i], RET_CH(ch_mult_mod));
+        printf("suqare base get result: base[%u]=%x\r\n", i, b);
+        CHAN_OUT(base[i], b, MC_OUT_CH(ch_square_base, task_square_base_get_result,
+                                       task_square_base, task_mult_block));
+    }
+
+    TRANSITION_TO(task_exp);
+}
+
+void task_mult_mod()
+{
+    int i;
+    digit_t a, b, r;
+
+    printf("mult mod\r\n");
+
+    for (i = 0; i < NUM_DIGITS; ++i) {
+        a = *CHAN_IN1(A[i], CALL_CH(ch_mult_mod));
+        b = *CHAN_IN1(B[i], CALL_CH(ch_mult_mod));
+
+        // TODO: temporary dummy implementation
+        r = (a * b) & DIGIT_MASK;
+        printf("mult mod: i=%u a=%x b=%x r=%x\r\n", i, a, b, r);
+
+        CHAN_OUT(product[i], r, RET_CH(ch_mult_mod));
+    }
+
+    CHAN_OUT(digit, 0, CH(task_mult_mod, task_mult));
+    CHAN_OUT(carry, 0, CH(task_mult_mod, task_mult));
+
+    const task_t *next_task = *CHAN_IN1(next_task, CALL_CH(ch_mult_mod));
+    transition_to(next_task);
+
+#if 0
+    pass A, B to mult
+    TRANSITION_TO(task_mult);
+#endif
 }
 
 void task_mult()
@@ -252,16 +432,16 @@ void task_mult()
 
     blink(1, BLINK_DURATION_TASK / 4, LED1);
 
-    digit = *CHAN_IN2(digit, CH(task_init, task_mult), SELF_IN_CH(task_mult));
-    carry = *CHAN_IN2(carry, CH(task_init, task_mult), SELF_IN_CH(task_mult));
+    digit = *CHAN_IN2(digit, CH(task_mult_mod, task_mult), SELF_IN_CH(task_mult));
+    carry = *CHAN_IN2(carry, CH(task_mult_mod, task_mult), SELF_IN_CH(task_mult));
 
     printf("mult: digit=%u carry=%x\r\n", digit, carry);
 
     p = carry;
     for (i = 0; i < NUM_DIGITS; ++i) {
         if (digit - i >= 0 && digit - i < NUM_DIGITS) {
-            a = *CHAN_IN1(A[digit - i], CH(task_init, task_mult));
-            b = *CHAN_IN1(B[i], CH(task_init, task_mult));
+            a = *CHAN_IN1(A[digit - i], CH(task_mult_mod, task_mult));
+            b = *CHAN_IN1(B[i], CH(task_mult_mod, task_mult));
             p += a * b;
             printf("mult: i=%u a=%x b=%x p=%x\r\n", i, a, b, p);
         }
