@@ -197,6 +197,13 @@ MULTICAST_CHANNEL(msg_product, ch_qn, task_reduce_multiply,
                   task_reduce_compare, task_reduce_subtract);
 CALL_CHANNEL(ch_print_product, msg_print);
 
+// Blocks are padded with these digits (on the MSD side). Padding value must be
+// chosen such that block value is less than the modulus. This is accomplished
+// by any value below 0x80, because the modulus is restricted to be above
+// 0x80 (see comments below).
+static const uint8_t PAD_DIGITS[] = { 0x01 };
+#define NUM_PAD_DIGITS (sizeof(PAD_DIGITS) / sizeof(PAD_DIGITS[0]))
+
 // Test input
 static const uint8_t A[] = { 0x40, 0x30, 0x20, 0x10 };
 static const uint8_t B[] = { 0xB0, 0xA0, 0x90, 0x80 };
@@ -206,8 +213,7 @@ static const digit_t E = 0x03; // encryption exponent
 
 // padded message blocks (padding is the first byte (0x01), rest is payload)
 static const uint8_t M[] = {
-    0x55, 0x3D, 0xEF, 0x01,
-    0xC0, 0x4A, 0x92, 0x01,
+    0x55, 0x3D, 0xEF, 0xC0, 0x4A, 0x92,
 };
 
 // NOTE: Restriction: M >= 0x80000000 (i.e. MSB set). To lift restriction need
@@ -288,6 +294,7 @@ void task_pad()
 {
     int i;
     unsigned block_offset, message_length;
+    digit_t m;
 
     block_offset = *CHAN_IN2(block_offset, CH(task_init, task_pad),
                                            SELF_IN_CH(task_pad));
@@ -296,19 +303,28 @@ void task_pad()
 
     printf("pad: len=%u offset=%u\r\n", message_length, block_offset);
 
-    if (block_offset + NUM_DIGITS > message_length) {
+    if (block_offset + NUM_DIGITS - NUM_PAD_DIGITS > message_length) {
         printf("pad: message done\r\n");
         blink(1, BLINK_MESSAGE_DONE, LED1 | LED2);
         TRANSITION_TO(task_init);
     }
 
-    printf("process block: offset=%u: ", block_offset);
-    for (i = NUM_DIGITS - 1; i >= 0; --i) { // reverse for printing
-        CHAN_OUT(base[i], M[block_offset + i],
-                 MC_OUT_CH(ch_base, task_pad, task_mult_block, task_square_base));
+    printf("process block: padded block at offset=%u: ", block_offset);
+    for (i = 0; i < NUM_PAD_DIGITS; ++i)
+        printf("%x ", PAD_DIGITS[i]);
+    printf("'");
+    for (i = NUM_DIGITS - NUM_PAD_DIGITS - 1; i >= 0; --i)
         printf("%x ", M[block_offset + i]);
-    }
     printf("\r\n");
+
+    for (i = 0; i < NUM_DIGITS - NUM_PAD_DIGITS; ++i) {
+        m = (block_offset + i < message_length) ? M[block_offset + i] : 0x00;
+        CHAN_OUT(base[i], m, MC_OUT_CH(ch_base, task_pad, task_mult_block, task_square_base));
+    }
+    for (i = NUM_DIGITS - NUM_PAD_DIGITS; i < NUM_DIGITS; ++i) {
+        CHAN_OUT(base[i], PAD_DIGITS[i],
+                 MC_OUT_CH(ch_base, task_pad, task_mult_block, task_square_base));
+    }
 
     CHAN_OUT(block[0], 1, CH(task_pad, task_mult_block));
     for (i = 1; i < NUM_DIGITS; ++i)
@@ -316,7 +332,7 @@ void task_pad()
 
     CHAN_OUT(E, E, CH(task_pad, task_exp));
 
-    block_offset += NUM_DIGITS;
+    block_offset += NUM_DIGITS - NUM_PAD_DIGITS;
     CHAN_OUT(block_offset, block_offset, SELF_OUT_CH(task_pad));
 
     TRANSITION_TO(task_exp);
