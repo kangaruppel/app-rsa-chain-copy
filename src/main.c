@@ -42,6 +42,8 @@ typedef uint16_t digit_t;
 #define BLINK_BLOCK_DONE    (10 * SEC_TO_CYCLES)
 #define BLINK_MESSAGE_DONE  (20 * SEC_TO_CYCLES)
 
+// #define SHOW_PROGRESS_ON_LED
+
 // If you link-in wisp-base, then you have to define some symbols.
 uint8_t usrBank[USRBANK_SIZE];
 
@@ -482,7 +484,9 @@ void task_mult()
     digit_t dp, p, carry;
     int digit;
 
+#ifdef SHOW_PROGRESS_ON_LED
     blink(1, BLINK_DURATION_TASK / 4, LED1);
+#endif
 
     digit = *CHAN_IN2(digit, CH(task_mult_mod, task_mult), SELF_IN_CH(task_mult));
     carry = *CHAN_IN2(carry, CH(task_mult_mod, task_mult), SELF_IN_CH(task_mult));
@@ -707,7 +711,9 @@ void task_reduce_n_divisor()
     digit_t n[2]; // [1]=N[msd], [0]=N[msd-1]
     digit_t n_div;
 
+#ifdef SHOW_PROGRESS_ON_LED
     blink(1, SEC_TO_CYCLES, LED2);
+#endif
 
     printf("reduce: n divisor\r\n");
 
@@ -732,7 +738,9 @@ void task_reduce_quotient()
     digit_t m_n, n_div, q;
     uint32_t qn, n_q; // must hold at least 3 digits
 
+#ifdef SHOW_PROGRESS_ON_LED
     blink(1, BLINK_DURATION_TASK, LED2);
+#endif
 
     d = *CHAN_IN2(digit, MC_IN_CH(ch_digit, task_reduce_digits, task_reduce_quotient),
                          SELF_IN_CH(task_reduce_quotient));
@@ -816,7 +824,9 @@ void task_reduce_multiply()
     digit_t m, q, n;
     unsigned c, d, offset;
 
+#ifdef SHOW_PROGRESS_ON_LED
     blink(1, BLINK_DURATION_TASK, LED2);
+#endif
 
     d = *CHAN_IN1(digit, MC_IN_CH(ch_reduce_digit,
                                   task_reduce_quotient, task_reduce_multiply));
@@ -876,7 +886,9 @@ void task_reduce_compare()
     digit_t m, d, qn;
     char relation = '=';
 
+#ifdef SHOW_PROGRESS_ON_LED
     blink(1, BLINK_DURATION_TASK, LED2);
+#endif
 
     d = *CHAN_IN1(digit, MC_IN_CH(ch_reduce_digit,
                                   task_reduce_quotient, task_reduce_compare));
@@ -929,7 +941,9 @@ void task_reduce_add()
     digit_t m, n, c, r;
     unsigned d, offset;
 
+#ifdef SHOW_PROGRESS_ON_LED
     blink(1, BLINK_DURATION_TASK, LED2);
+#endif
 
     d = *CHAN_IN1(digit, MC_IN_CH(ch_reduce_digit,
                                   task_reduce_quotient, task_reduce_compare));
@@ -993,7 +1007,9 @@ void task_reduce_subtract()
     digit_t m, s, r, qn;
     unsigned d, borrow, offset;
 
+#ifdef SHOW_PROGRESS_ON_LED
     blink(1, BLINK_DURATION_TASK, LED2);
+#endif
 
     d = *CHAN_IN1(digit, MC_IN_CH(ch_reduce_digit, task_reduce_quotient,
                                   task_reduce_subtract));
