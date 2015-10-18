@@ -377,13 +377,14 @@ void task_mult_block_get_result()
     int i;
     digit_t m;
 
-    printf("mult block get results\r\n");
-
+    printf("mult block get results: block: ");
     for (i = 0; i < NUM_DIGITS; ++i) {
         m = *CHAN_IN1(product[i], RET_CH(ch_mult_mod));
-        printf("mult block get results: block[%u]=%x\r\n", i, m);
+        printf("%x ", m);
         CHAN_OUT(block[i], m, CH(task_mult_block_get_result, task_mult_block));
     }
+    printf("\r\n");
+
     // TODO: on last iteration we don't need to square base
     TRANSITION_TO(task_square_base);
 }
