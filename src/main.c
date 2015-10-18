@@ -39,6 +39,8 @@ typedef uint16_t digit_t;
 #define SEC_TO_CYCLES 4000000 /* 4 MHz */
 
 #define BLINK_DURATION_TASK SEC_TO_CYCLES
+#define BLINK_BLOCK_DONE    (10 * SEC_TO_CYCLES)
+#define BLINK_MESSAGE_DONE  (20 * SEC_TO_CYCLES)
 
 // If you link-in wisp-base, then you have to define some symbols.
 uint8_t usrBank[USRBANK_SIZE];
@@ -109,6 +111,15 @@ struct msg_offset {
     CHAN_FIELD(unsigned, offset);
 };
 
+struct msg_block_offset {
+    CHAN_FIELD(unsigned, block_offset);
+};
+
+struct msg_message_info {
+    CHAN_FIELD(unsigned, message_length);
+    CHAN_FIELD(unsigned, block_offset);
+};
+
 struct msg_quotient {
     CHAN_FIELD(digit_t, quotient);
 };
@@ -118,28 +129,32 @@ struct msg_print {
     CHAN_FIELD(const task_t*, next_task);
 };
 
-TASK(1, task_init)
-TASK(2, task_exp)
-TASK(3, task_mult_block)
-TASK(4, task_mult_block_get_result)
-TASK(5, task_square_base)
-TASK(6,  task_square_base_get_result)
-TASK(7, task_mult_mod)
-TASK(8, task_mult)
-TASK(9, task_reduce_digits)
-TASK(10, task_reduce_normalizable)
-TASK(11, task_reduce_normalize)
-TASK(12, task_reduce_n_divisor)
-TASK(13, task_reduce_quotient)
-TASK(14, task_reduce_multiply)
-TASK(15, task_reduce_compare)
-TASK(16, task_reduce_add)
-TASK(17, task_reduce_subtract)
-TASK(18, task_print_product)
+TASK(1,  task_init)
+TASK(2,  task_pad)
+TASK(3,  task_exp)
+TASK(4,  task_mult_block)
+TASK(5,  task_mult_block_get_result)
+TASK(6,  task_square_base)
+TASK(7,  task_square_base_get_result)
+TASK(8,  task_mult_mod)
+TASK(9,  task_mult)
+TASK(10, task_reduce_digits)
+TASK(11, task_reduce_normalizable)
+TASK(12, task_reduce_normalize)
+TASK(13, task_reduce_n_divisor)
+TASK(14, task_reduce_quotient)
+TASK(15, task_reduce_multiply)
+TASK(16, task_reduce_compare)
+TASK(17, task_reduce_add)
+TASK(18, task_reduce_subtract)
+TASK(19, task_print_product)
 
 MULTICAST_CHANNEL(msg_base, ch_base, task_init, task_square_base, task_mult_block);
-CHANNEL(task_init, task_mult_block, msg_block);
-CHANNEL(task_init, task_exp, msg_exponent);
+CHANNEL(task_init, task_pad, msg_message_info);
+CHANNEL(task_pad, task_exp, msg_exponent);
+CHANNEL(task_pad, task_mult_block, msg_block);
+SELF_CHANNEL(task_pad, msg_block_offset);
+MULTICAST_CHANNEL(msg_base, ch_base, task_pad, task_mult_block, task_square_base);
 SELF_CHANNEL(task_exp, msg_exponent);
 CHANNEL(task_mult_block_get_result, task_mult_block, msg_block);
 MULTICAST_CHANNEL(msg_base, ch_square_base, task_square_base_get_result,
@@ -187,7 +202,12 @@ static const uint8_t B[] = { 0xB0, 0xA0, 0x90, 0x80 };
 
 static const uint8_t N[] = { 0x80, 0x49, 0x60, 0x01 }; // modulus (see note below)
 static const digit_t E = 0x03; // encryption exponent
-static const uint8_t M[] = { 0x01, 0x92, 0x4A, 0xC0 }; // padded message block
+
+// padded message blocks (padding is the first byte (0x01), rest is payload)
+static const uint8_t M[] = {
+    0x55, 0x3D, 0xEF, 0x01,
+    0xC0, 0x4A, 0x92, 0x01,
+};
 
 // NOTE: Restriction: M >= 0x80000000 (i.e. MSB set). To lift restriction need
 // to implement normalization: left shift until MSB is set, to reverse, right
@@ -246,23 +266,6 @@ void task_init()
 
     blink(1, SEC_TO_CYCLES * 2, LED1 | LED2);
 
-#if 0
-    // test values
-    printf("init: A=");
-    for (i = 0; i < NUM_DIGITS; ++i) {
-        CHAN_OUT(A[NUM_DIGITS - 1 - i], A[i], CH(task_init, task_mult));
-        printf("%x ", A[i]);
-    }
-    printf("\r\n");
-    printf("init: B=");
-    for (i = 0; i < NUM_DIGITS; ++i) {
-        CHAN_OUT(B[NUM_DIGITS - 1 - i], B[i], CH(task_init, task_mult));
-        printf("%x ", B[i]);
-    }
-    printf("\r\n");
-#endif
-
-
     printf("init: N=");
     for (i = 0; i < NUM_DIGITS; ++i) {
         CHAN_OUT(N[NUM_DIGITS - 1 - i], N[i], MC_OUT_CH(ch_modulus, task_init,
@@ -274,19 +277,46 @@ void task_init()
     }
     printf("\r\n");
 
-    printf("init: M=");
-    for (i = 0; i < NUM_DIGITS; ++i) {
-        CHAN_OUT(base[NUM_DIGITS - 1 - i], M[i],
-                 MC_OUT_CH(ch_base, task_init, task_mult_block, task_square_base));
-        printf("%x ", M[i]);
+    CHAN_OUT(message_length, sizeof(M), CH(task_init, task_pad));
+    CHAN_OUT(block_offset, 0, CH(task_init, task_pad));
+
+    TRANSITION_TO(task_pad);
+}
+
+void task_pad()
+{
+    int i;
+    unsigned block_offset, message_length;
+
+    block_offset = *CHAN_IN2(block_offset, CH(task_init, task_pad),
+                                           SELF_IN_CH(task_pad));
+
+    message_length = *CHAN_IN1(message_length, CH(task_init, task_pad));
+
+    printf("pad: len=%u offset=%u\r\n", message_length, block_offset);
+
+    if (block_offset + NUM_DIGITS > message_length) {
+        printf("pad: message done\r\n");
+        blink(1, BLINK_BLOCK_DONE, LED1 | LED2);
+        TRANSITION_TO(task_init);
+    }
+
+    printf("process block: offset=%u: ", block_offset);
+    for (i = NUM_DIGITS - 1; i >= 0; --i) { // reverse for printing
+        CHAN_OUT(base[i], M[block_offset + i],
+                 MC_OUT_CH(ch_base, task_pad, task_mult_block, task_square_base));
+        printf("%x ", M[block_offset + i]);
     }
     printf("\r\n");
 
-    CHAN_OUT(E, E, CH(task_init, task_exp));
-
-    CHAN_OUT(block[0], 1, CH(task_init, task_mult_block));
+    CHAN_OUT(block[0], 1, CH(task_pad, task_mult_block));
     for (i = 1; i < NUM_DIGITS; ++i)
-        CHAN_OUT(block[i], 0, CH(task_init, task_mult_block));
+        CHAN_OUT(block[i], 0, CH(task_pad, task_mult_block));
+
+    CHAN_OUT(E, E, CH(task_pad, task_exp));
+
+    block_offset += NUM_DIGITS;
+    CHAN_OUT(block_offset, block_offset, SELF_OUT_CH(task_pad));
 
     TRANSITION_TO(task_exp);
 }
@@ -296,12 +326,13 @@ void task_exp()
     digit_t e;
     bool multiply;
 
-    e = *CHAN_IN2(E, CH(task_init, task_exp), SELF_IN_CH(task_exp));
+    e = *CHAN_IN2(E, CH(task_pad, task_exp), SELF_IN_CH(task_exp));
     printf("exp: e=%x\r\n", e);
 
     if (e == 0) {
-        printf("exp: exponentiation done\r\n");
-        TRANSITION_TO(task_init);
+        printf("exp: block done\r\n");
+        blink(1, BLINK_BLOCK_DONE, LED1 | LED2);
+        TRANSITION_TO(task_pad);
     }
 
     multiply = e & 0x1;
@@ -327,12 +358,12 @@ void task_mult_block()
 
     // TODO: pass args to mult: message * base
     for (i = 0; i < NUM_DIGITS; ++i) {
-        b = *CHAN_IN2(base[i], MC_IN_CH(ch_base, task_init, task_mult_block),
+        b = *CHAN_IN2(base[i], MC_IN_CH(ch_base, task_pad, task_mult_block),
                                MC_IN_CH(ch_square_base, task_square_base_get_result, task_mult_block));
         CHAN_OUT(A[i], b, CALL_CH(ch_mult_mod));
 
-        m = *CHAN_IN2(block[i], CH(task_init, task_mult_block),
-                                  CH(task_mult_block_get_result, task_mult_block));
+        m = *CHAN_IN2(block[i], CH(task_pad, task_mult_block),
+                                CH(task_mult_block_get_result, task_mult_block));
         CHAN_OUT(B[i], m, CALL_CH(ch_mult_mod));
 
         printf("mult block: a[%u]=%x b[%u]=%x\r\n", i, b, i, m);
@@ -353,6 +384,7 @@ void task_mult_block_get_result()
         printf("mult block get results: block[%u]=%x\r\n", i, m);
         CHAN_OUT(block[i], m, CH(task_mult_block_get_result, task_mult_block));
     }
+    // TODO: on last iteration we don't need to square base
     TRANSITION_TO(task_square_base);
 }
 
@@ -366,7 +398,7 @@ void task_square_base()
     printf("square base\r\n");
 
     for (i = 0; i < NUM_DIGITS; ++i) {
-        b = *CHAN_IN2(base[i], MC_IN_CH(ch_base, task_init, task_square_base),
+        b = *CHAN_IN2(base[i], MC_IN_CH(ch_base, task_pad, task_square_base),
                                MC_IN_CH(ch_square_base, task_square_base_get_result, task_square_base));
         CHAN_OUT(A[i], b, CALL_CH(ch_mult_mod));
         CHAN_OUT(B[i], b, CALL_CH(ch_mult_mod));
