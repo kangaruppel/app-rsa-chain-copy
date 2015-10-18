@@ -629,7 +629,7 @@ void task_reduce_normalize()
         CHAN_OUT(product[i], 0, CALL_CH(ch_print_product));
     }
 
-    if (offset >= NUM_DIGITS) {
+    if (offset > 0) { // l-1 > k-1 (loop bounds), where offset=l-k, where l=|m|,k=|n|
         next_task = TASK_REF(task_reduce_n_divisor);
     } else {
         printf("reduce: normalize: reduction done: no digits to reduce\r\n");
