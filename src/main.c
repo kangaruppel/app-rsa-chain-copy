@@ -153,6 +153,7 @@ struct msg_block_offset {
 struct msg_message_info {
     CHAN_FIELD(unsigned, message_length);
     CHAN_FIELD(unsigned, block_offset);
+    CHAN_FIELD(digit_t, E);
 };
 
 struct msg_quotient {
@@ -300,6 +301,7 @@ void task_init()
     }
     printf("\r\n");
 
+    CHAN_OUT(E, E, CH(task_init, task_pad));
     CHAN_OUT(message_length, sizeof(PLAINTEXT), CH(task_init, task_pad));
     CHAN_OUT(block_offset, 0, CH(task_init, task_pad));
     CHAN_OUT(cyphertext_len, 0, CH(task_init, task_mult_block_get_result));
@@ -346,7 +348,8 @@ void task_pad()
     for (i = 1; i < NUM_DIGITS; ++i)
         CHAN_OUT(block[i], 0, CH(task_pad, task_mult_block));
 
-    CHAN_OUT(E, E, CH(task_pad, task_exp));
+    e = *CHAN_IN1(E, CH(task_init, task_pad));
+    CHAN_OUT(E, e, CH(task_pad, task_exp));
 
     block_offset += NUM_DIGITS - NUM_PAD_DIGITS;
     CHAN_OUT(block_offset, block_offset, SELF_OUT_CH(task_pad));
