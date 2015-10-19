@@ -206,17 +206,16 @@ CALL_CHANNEL(ch_print_product, msg_print);
 static const uint8_t PAD_DIGITS[] = { 0x01 };
 #define NUM_PAD_DIGITS (sizeof(PAD_DIGITS) / sizeof(PAD_DIGITS[0]))
 
-// Test input
-static const uint8_t A[] = { 0x40, 0x30, 0x20, 0x10 };
-static const uint8_t B[] = { 0xB0, 0xA0, 0x90, 0x80 };
+// To generate a key pair:
+// $ openssl genrsa -out private.pem -3 32
+// $ openssl rsa -out keys.txt -text -in private.pem
+// Note: genrsa is superceded by genpkey, but the latter supports only >256-bit
 
-static const uint8_t N[] = { 0x80, 0x49, 0x60, 0x01 }; // modulus (see note below)
-static const digit_t E = 0x11; // encryption exponent
+static const uint8_t N[] = { 0xaa, 0x49, 0x6a, 0x45}; // modulus (see note below)
+static const digit_t E = 0x3; // public exponent
+// private exponent for the above: 0x71853073
 
-// padded message blocks (padding is the first byte (0x01), rest is payload)
-static const uint8_t M[] = {
-    0x55, 0x3D, 0xEF, 0xC0, 0x4A, 0x92,
-};
+static const unsigned char PLAINTEXT[] = "Hello, World!";
 
 // NOTE: Restriction: M >= 0x80000000 (i.e. MSB set). To lift restriction need
 // to implement normalization: left shift until MSB is set, to reverse, right
@@ -286,7 +285,7 @@ void task_init()
     }
     printf("\r\n");
 
-    CHAN_OUT(message_length, sizeof(M), CH(task_init, task_pad));
+    CHAN_OUT(message_length, sizeof(PLAINTEXT), CH(task_init, task_pad));
     CHAN_OUT(block_offset, 0, CH(task_init, task_pad));
 
     TRANSITION_TO(task_pad);
@@ -316,11 +315,11 @@ void task_pad()
         printf("%x ", PAD_DIGITS[i]);
     printf("'");
     for (i = NUM_DIGITS - NUM_PAD_DIGITS - 1; i >= 0; --i)
-        printf("%x ", M[block_offset + i]);
+        printf("%x ", PLAINTEXT[block_offset + i]);
     printf("\r\n");
 
     for (i = 0; i < NUM_DIGITS - NUM_PAD_DIGITS; ++i) {
-        m = (block_offset + i < message_length) ? M[block_offset + i] : 0x00;
+        m = (block_offset + i < message_length) ? PLAINTEXT[block_offset + i] : 0x00;
         CHAN_OUT(base[i], m, MC_OUT_CH(ch_base, task_pad, task_mult_block, task_square_base));
     }
     for (i = NUM_DIGITS - NUM_PAD_DIGITS; i < NUM_DIGITS; ++i) {
