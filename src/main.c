@@ -1014,11 +1014,10 @@ void task_reduce_subtract()
     d = *CHAN_IN1(digit, MC_IN_CH(ch_reduce_digit, task_reduce_quotient,
                                   task_reduce_subtract));
 
-    printf("reduce: subtract: d=%u\r\n", d);
-
-
     // The qn product had been shifted by this offset, no need to subtract the zeros
     offset = d - NUM_DIGITS;
+
+    printf("reduce: subtract: d=%u offset=%u\r\n", d, offset);
 
     // For calling the print task we need to proxy to it values that
     // we do not modify
