@@ -47,12 +47,13 @@ typedef uint16_t digit_t;
 #define SEC_TO_CYCLES 4000000 /* 4 MHz */
 
 #define BLINK_DURATION_TASK SEC_TO_CYCLES
-#define BLINK_BLOCK_DONE    (10 * SEC_TO_CYCLES)
-#define BLINK_MESSAGE_DONE  (20 * SEC_TO_CYCLES)
+#define BLINK_BLOCK_DONE    (1 * SEC_TO_CYCLES)
+#define BLINK_MESSAGE_DONE  (2 * SEC_TO_CYCLES)
 
 #define PRINT_HEX_ASCII_COLS 4
 
 // #define SHOW_PROGRESS_ON_LED
+#define SHOW_COARSE_PROGRESS_ON_LED
 
 // Blocks are padded with these digits (on the MSD side). Padding value must be
 // chosen such that block value is less than the modulus. This is accomplished
@@ -317,7 +318,9 @@ void task_init()
 
     LOG("init\r\n");
 
+#ifdef SHOW_COARSE_PROGRESS_ON_LED
     blink(1, SEC_TO_CYCLES * 2, LED1 | LED2);
+#endif
 
     printf("Message:\r\n"); print_hex_ascii(PLAINTEXT, sizeof(PLAINTEXT));
 
@@ -346,6 +349,10 @@ void task_pad()
     int i;
     unsigned block_offset, message_length;
     digit_t m, e;
+
+#ifdef SHOW_COARSE_PROGRESS_ON_LED
+    GPIO(PORT_LED_1, OUT) &= ~BIT(PIN_LED_1);
+#endif
 
     block_offset = *CHAN_IN2(block_offset, CH(task_init, task_pad),
                                            SELF_IN_CH(task_pad));
@@ -386,6 +393,9 @@ void task_pad()
     block_offset += NUM_DIGITS - NUM_PAD_DIGITS;
     CHAN_OUT(block_offset, block_offset, SELF_OUT_CH(task_pad));
 
+#ifdef SHOW_COARSE_PROGRESS_ON_LED
+    GPIO(PORT_LED_1, OUT) |= BIT(PIN_LED_1);
+#endif
     TRANSITION_TO(task_exp);
 }
 
@@ -496,7 +506,6 @@ void task_mult_block_get_result()
                  CH(task_mult_block_get_result, task_print_cyphertext));
 
         LOG("mult block get results: block done, cyphertext_len=%u\r\n", cyphertext_len);
-        blink(1, BLINK_BLOCK_DONE, LED1 | LED2);
         TRANSITION_TO(task_pad);
     }
 
@@ -561,7 +570,9 @@ void task_print_cyphertext()
     }
     printf("\r\n");
 
-    blink(1, BLINK_MESSAGE_DONE, LED1 | LED2);
+#ifdef SHOW_COARSE_PROGRESS_ON_LED
+    blink(1, BLINK_MESSAGE_DONE, LED2);
+#endif
 
     TRANSITION_TO(task_init);
 }
