@@ -44,6 +44,30 @@ typedef uint16_t digit_t;
 
 // #define SHOW_PROGRESS_ON_LED
 
+// Blocks are padded with these digits (on the MSD side). Padding value must be
+// chosen such that block value is less than the modulus. This is accomplished
+// by any value below 0x80, because the modulus is restricted to be above
+// 0x80 (see comments below).
+static const uint8_t PAD_DIGITS[] = { 0x01 };
+#define NUM_PAD_DIGITS (sizeof(PAD_DIGITS) / sizeof(PAD_DIGITS[0]))
+
+// To generate a key pair:
+// $ openssl genrsa -out private.pem -3 32
+// $ openssl rsa -out keys.txt -text -in private.pem
+// Note: genrsa is superceded by genpkey, but the latter supports only >256-bit
+
+// NOTE: Restriction: M >= 0x80000000 (i.e. MSB set). To lift restriction need
+// to implement normalization: left shift until MSB is set, to reverse, right
+// shift the remainder.
+static const uint8_t N[] = { 0xaa, 0x49, 0x6a, 0x45}; // modulus (see note below)
+static const digit_t E = 0x3; // public exponent
+// private exponent for the above: 0x71853073
+
+static const unsigned char PLAINTEXT[] = "Hello, World!";
+
+#define CYPHERTEXT_SIZE 32
+
+
 // If you link-in wisp-base, then you have to define some symbols.
 uint8_t usrBank[USRBANK_SIZE];
 
@@ -100,6 +124,15 @@ struct msg_base_block {
     CHAN_FIELD_ARRAY(digit_t, block, NUM_DIGITS * 2);
 };
 
+struct msg_cyphertext_len {
+    CHAN_FIELD(unsigned, cyphertext_len);
+};
+
+struct msg_cyphertext {
+    CHAN_FIELD_ARRAY(digit_t, cyphertext, CYPHERTEXT_SIZE);
+    CHAN_FIELD(unsigned, cyphertext_len);
+};
+
 struct msg_divisor {
     CHAN_FIELD(unsigned, digit);
     CHAN_FIELD(digit_t, n_div);
@@ -138,21 +171,23 @@ TASK(4,  task_mult_block)
 TASK(5,  task_mult_block_get_result)
 TASK(6,  task_square_base)
 TASK(7,  task_square_base_get_result)
-TASK(8,  task_mult_mod)
-TASK(9,  task_mult)
-TASK(10, task_reduce_digits)
-TASK(11, task_reduce_normalizable)
-TASK(12, task_reduce_normalize)
-TASK(13, task_reduce_n_divisor)
-TASK(14, task_reduce_quotient)
-TASK(15, task_reduce_multiply)
-TASK(16, task_reduce_compare)
-TASK(17, task_reduce_add)
-TASK(18, task_reduce_subtract)
-TASK(19, task_print_product)
+TASK(8,  task_print_cyphertext)
+TASK(9,  task_mult_mod)
+TASK(10,  task_mult)
+TASK(11, task_reduce_digits)
+TASK(12, task_reduce_normalizable)
+TASK(13, task_reduce_normalize)
+TASK(14, task_reduce_n_divisor)
+TASK(15, task_reduce_quotient)
+TASK(16, task_reduce_multiply)
+TASK(17, task_reduce_compare)
+TASK(18, task_reduce_add)
+TASK(19, task_reduce_subtract)
+TASK(20, task_print_product)
 
 MULTICAST_CHANNEL(msg_base, ch_base, task_init, task_square_base, task_mult_block);
 CHANNEL(task_init, task_pad, msg_message_info);
+CHANNEL(task_init, task_mult_block_get_result, msg_cyphertext_len);
 CHANNEL(task_pad, task_exp, msg_exponent);
 CHANNEL(task_pad, task_mult_block, msg_block);
 SELF_CHANNEL(task_pad, msg_block_offset);
@@ -160,6 +195,8 @@ MULTICAST_CHANNEL(msg_base, ch_base, task_pad, task_mult_block, task_square_base
 SELF_CHANNEL(task_exp, msg_exponent);
 CHANNEL(task_exp, task_mult_block_get_result, msg_exponent);
 CHANNEL(task_mult_block_get_result, task_mult_block, msg_block);
+SELF_CHANNEL(task_mult_block_get_result, msg_cyphertext_len);
+CHANNEL(task_mult_block_get_result, task_print_cyphertext, msg_cyphertext);
 MULTICAST_CHANNEL(msg_base, ch_square_base, task_square_base_get_result,
                   task_square_base, task_mult_block);
 CALL_CHANNEL(ch_mult_mod, msg_mult_mod_args);
@@ -198,28 +235,6 @@ CHANNEL(task_reduce_quotient, task_reduce_multiply, msg_quotient);
 MULTICAST_CHANNEL(msg_product, ch_qn, task_reduce_multiply,
                   task_reduce_compare, task_reduce_subtract);
 CALL_CHANNEL(ch_print_product, msg_print);
-
-// Blocks are padded with these digits (on the MSD side). Padding value must be
-// chosen such that block value is less than the modulus. This is accomplished
-// by any value below 0x80, because the modulus is restricted to be above
-// 0x80 (see comments below).
-static const uint8_t PAD_DIGITS[] = { 0x01 };
-#define NUM_PAD_DIGITS (sizeof(PAD_DIGITS) / sizeof(PAD_DIGITS[0]))
-
-// To generate a key pair:
-// $ openssl genrsa -out private.pem -3 32
-// $ openssl rsa -out keys.txt -text -in private.pem
-// Note: genrsa is superceded by genpkey, but the latter supports only >256-bit
-
-static const uint8_t N[] = { 0xaa, 0x49, 0x6a, 0x45}; // modulus (see note below)
-static const digit_t E = 0x3; // public exponent
-// private exponent for the above: 0x71853073
-
-static const unsigned char PLAINTEXT[] = "Hello, World!";
-
-// NOTE: Restriction: M >= 0x80000000 (i.e. MSB set). To lift restriction need
-// to implement normalization: left shift until MSB is set, to reverse, right
-// shift the remainder.
 
 void init()
 {
@@ -287,6 +302,7 @@ void task_init()
 
     CHAN_OUT(message_length, sizeof(PLAINTEXT), CH(task_init, task_pad));
     CHAN_OUT(block_offset, 0, CH(task_init, task_pad));
+    CHAN_OUT(cyphertext_len, 0, CH(task_init, task_mult_block_get_result));
 
     TRANSITION_TO(task_pad);
 }
@@ -306,8 +322,7 @@ void task_pad()
 
     if (block_offset >= message_length) {
         printf("pad: message done\r\n");
-        blink(1, BLINK_MESSAGE_DONE, LED1 | LED2);
-        TRANSITION_TO(task_init);
+        TRANSITION_TO(task_print_cyphertext);
     }
 
     printf("process block: padded block at offset=%u: ", block_offset);
@@ -391,8 +406,9 @@ void task_mult_block_get_result()
 {
     int i;
     digit_t m, e;
+    unsigned cyphertext_len;
 
-    printf("mult block get results: block: ");
+    printf("mult block get result: block: ");
     for (i = NUM_DIGITS - 1; i >= 0; --i) { // reverse for printing
         m = *CHAN_IN1(product[i], RET_CH(ch_mult_mod));
         printf("%x ", m);
@@ -404,9 +420,47 @@ void task_mult_block_get_result()
 
     // On last iteration we don't need to square base
     if (e > 0) {
+
+        // TODO: current implementation restricts us to send only to the next instantiation
+        // of self, so for now, as a workaround, we proxy the value in every instantiation
+        cyphertext_len = *CHAN_IN2(cyphertext_len,
+                                   CH(task_init, task_mult_block_get_result),
+                                   SELF_IN_CH(task_mult_block_get_result));
+        CHAN_OUT(cyphertext_len, cyphertext_len, SELF_OUT_CH(task_mult_block_get_result));
+
         TRANSITION_TO(task_square_base);
-    } else {
-        printf("mult block get results: block done\r\n");
+
+    } else { // block is finished, save it
+
+        cyphertext_len = *CHAN_IN2(cyphertext_len,
+                                   CH(task_init, task_mult_block_get_result),
+                                   SELF_IN_CH(task_mult_block_get_result));
+        printf("mult block get result: cyphertext len=%u\r\n", cyphertext_len);
+
+        if (cyphertext_len + NUM_DIGITS <= CYPHERTEXT_SIZE) {
+
+            for (i = 0; i < NUM_DIGITS; ++i) { // reverse for printing
+                // TODO: we could save this read by rolling this loop into the
+                // above loop, by paying with an extra conditional in the
+                // above-loop.
+                m = *CHAN_IN1(product[i], RET_CH(ch_mult_mod));
+                CHAN_OUT(cyphertext[cyphertext_len], m,
+                         CH(task_mult_block_get_result, task_print_cyphertext));
+                cyphertext_len++;
+            }
+
+        } else {
+            printf("WARN: block dropped: cyphertext buffer overlow\r\n");
+            // carry on encoding, though
+        }
+
+        // TODO: implementation limitation: cannot multicast and send to self
+        // in the same macro
+        CHAN_OUT(cyphertext_len, cyphertext_len, SELF_OUT_CH(task_mult_block_get_result));
+        CHAN_OUT(cyphertext_len, cyphertext_len,
+                 CH(task_mult_block_get_result, task_print_cyphertext));
+
+        printf("mult block get results: block done, cyphertext_len=%u\r\n", cyphertext_len);
         blink(1, BLINK_BLOCK_DONE, LED1 | LED2);
         TRANSITION_TO(task_pad);
     }
@@ -450,6 +504,26 @@ void task_square_base_get_result()
     }
 
     TRANSITION_TO(task_exp);
+}
+
+void task_print_cyphertext()
+{
+    int i;
+    unsigned cyphertext_len;
+    digit_t c;
+
+    cyphertext_len = *CHAN_IN1(cyphertext_len,
+                               CH(task_mult_block_get_result, task_print_cyphertext));
+    printf("Cyphertext: len=%u: \r\n", cyphertext_len);
+    for (i = 0; i < cyphertext_len; ++i) {
+        c = *CHAN_IN1(cyphertext[i], CH(task_mult_block_get_result, task_print_cyphertext));
+        printf("%x ", c);
+    }
+    printf("\r\n");
+
+    blink(1, BLINK_MESSAGE_DONE, LED1 | LED2);
+
+    TRANSITION_TO(task_init);
 }
 
 // TODO: this task also looks like a proxy: is it avoidable?
