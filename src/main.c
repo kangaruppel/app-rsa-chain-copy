@@ -46,6 +46,7 @@ typedef uint16_t digit_t;
 
 #define SEC_TO_CYCLES 4000000 /* 4 MHz */
 
+#define BLINK_DURATION_BOOT (5 * SEC_TO_CYCLES)
 #define BLINK_DURATION_TASK SEC_TO_CYCLES
 #define BLINK_BLOCK_DONE    (1 * SEC_TO_CYCLES)
 #define BLINK_MESSAGE_DONE  (2 * SEC_TO_CYCLES)
@@ -319,7 +320,7 @@ void task_init()
     LOG("init\r\n");
 
 #ifdef SHOW_COARSE_PROGRESS_ON_LED
-    blink(1, SEC_TO_CYCLES * 2, LED1 | LED2);
+    blink(1, BLINK_DURATION_BOOT, LED1 | LED2);
 #endif
 
     printf("Message:\r\n"); print_hex_ascii(PLAINTEXT, sizeof(PLAINTEXT));
