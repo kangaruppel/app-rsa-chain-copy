@@ -54,7 +54,7 @@ typedef uint16_t digit_t;
 #define PRINT_HEX_ASCII_COLS 8
 
 // #define SHOW_PROGRESS_ON_LED
-#define SHOW_COARSE_PROGRESS_ON_LED
+// #define SHOW_COARSE_PROGRESS_ON_LED
 
 // Blocks are padded with these digits (on the MSD side). Padding value must be
 // chosen such that block value is less than the modulus. This is accomplished
