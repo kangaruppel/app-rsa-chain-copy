@@ -51,7 +51,7 @@ typedef uint16_t digit_t;
 #define BLINK_BLOCK_DONE    (1 * SEC_TO_CYCLES)
 #define BLINK_MESSAGE_DONE  (2 * SEC_TO_CYCLES)
 
-#define PRINT_HEX_ASCII_COLS 4
+#define PRINT_HEX_ASCII_COLS 8
 
 // #define SHOW_PROGRESS_ON_LED
 #define SHOW_COARSE_PROGRESS_ON_LED
@@ -301,9 +301,9 @@ static void print_hex_ascii(const uint8_t *m, unsigned len)
 
     for (i = 0; i < len; i += PRINT_HEX_ASCII_COLS) {
         for (j = 0; j < PRINT_HEX_ASCII_COLS && i + j < len; ++j)
-            printf("%x ", m[i + j]);
+            printf("%02x ", m[i + j]);
         for (; j < PRINT_HEX_ASCII_COLS; ++j)
-            printf("     ");
+            printf("   ");
         printf(" ");
         for (j = 0; j < PRINT_HEX_ASCII_COLS && i + j < len; ++j) {
             char c = m[i + j];
