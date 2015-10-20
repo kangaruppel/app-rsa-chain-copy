@@ -273,6 +273,7 @@ void init()
     printf("rsa app booted\r\n");
 }
 
+#ifdef SHOW_PROGRESS_ON_LED
 static void delay(uint32_t cycles)
 {
     unsigned i;
@@ -292,6 +293,7 @@ static void blink(unsigned count, uint32_t duration, unsigned leds)
         delay(duration / 2);
     }
 }
+#endif
 
 static void print_hex_ascii(const uint8_t *m, unsigned len)
 {
