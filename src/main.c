@@ -555,21 +555,31 @@ void task_square_base_get_result()
 
 void task_print_cyphertext()
 {
-    int i;
+    int i, j = 0;
     unsigned cyphertext_len;
     digit_t c;
+    char line[PRINT_HEX_ASCII_COLS];
 
     cyphertext_len = *CHAN_IN1(cyphertext_len,
                                CH(task_mult_block_get_result, task_print_cyphertext));
     LOG("print cyphertext: len=%u\r\n", cyphertext_len);
 
-    // Don't bother printing ASCII for cyphertext because it's meaningless
     printf("Cyphertext:\r\n");
     for (i = 0; i < cyphertext_len; ++i) {
         c = *CHAN_IN1(cyphertext[i], CH(task_mult_block_get_result, task_print_cyphertext));
-        printf("%x ", c);
-        if ((i + 1) % PRINT_HEX_ASCII_COLS == 0)
+        printf("%02x ", c);
+        line[j++] = c;
+        if ((i + 1) % PRINT_HEX_ASCII_COLS == 0) {
+            printf(" ");
+            for (j = 0; j < PRINT_HEX_ASCII_COLS; ++j) {
+                c = line[j];
+                if (!(32 <= c && c <= 127)) // not printable
+                    c = '.';
+                printf("%c", c);
+            }
+            j = 0;
             printf("\r\n");
+        }
     }
     printf("\r\n");
 
