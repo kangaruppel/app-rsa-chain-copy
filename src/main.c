@@ -9,9 +9,10 @@
 
 #include <libchain/chain.h>
 
-#ifdef CONFIG_LIBEDB_PRINTF
+#ifdef CONFIG_EDB
 #include <libedb/edb.h>
 #endif
+
 #include "pins.h"
 
 // #define VERBOSE
@@ -22,12 +23,14 @@
 #define LOG(...)
 #endif // VERBOSE
 
-#ifdef CONFIG_LIBEDB_PRINTF
+#if defined(CONFIG_LIBEDB_PRINTF_EIF)
+#define printf(...) PRINTF(__VA_ARGS__)
+#elif defined(CONFIG_LIBEDB_PRINTF_BARE)
 #define printf(...) BARE_PRINTF(__VA_ARGS__)
-#else // CONFIG_LIBEDB_PRINTF
-#ifndef CONFIG_LIBMSPCONSOLE_PRINTF
+#elif defined(CONFIG_LIBMSPCONSOLE_PRINTF)
+// nothing to to do
+#else
 #define printf(...)
-#endif // CONFIG_LIBMSPCONSOLE_PRINTF
 #endif
 
 #define NUM_DIGITS       4 // 4 * 8 = 32-bit blocks
@@ -252,16 +255,20 @@ void init()
 {
     WISP_init();
 
+#ifdef CONFIG_EDB
+    debug_setup();
+#endif
+
+#if defined(CONFIG_LIBEDB_PRINTF_BARE)
+    BARE_PRINTF_ENABLE();
+#elif defined(CONFIG_LIBMSPCONSOLE_PRINTF)
+    UART_init();
+#endif
+
     GPIO(PORT_LED_1, DIR) |= BIT(PIN_LED_1);
     GPIO(PORT_LED_2, DIR) |= BIT(PIN_LED_2);
 #if defined(PORT_LED_3)
     GPIO(PORT_LED_3, DIR) |= BIT(PIN_LED_3);
-#endif
-
-#if defined(CONFIG_LIBEDB_PRINTF)
-    BARE_PRINTF_ENABLE();
-#elif defined(CONFIG_LIBMSPCONSOLE_PRINTF)
-    UART_init();
 #endif
 
     __enable_interrupt();
