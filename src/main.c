@@ -384,7 +384,6 @@ void task_pad()
     message_length = *CHAN_IN1(message_length, CH(task_init, task_pad));
 
     LOG("pad: len=%u offset=%u\r\n", message_length, block_offset);
-    printf(".%u.\r\n", block_offset);
 
     if (block_offset >= message_length) {
         LOG("pad: message done\r\n");
