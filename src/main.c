@@ -80,7 +80,8 @@ static const digit_t E = 0x3; // public exponent
 
 static const unsigned char PLAINTEXT[] = "Hello, World!";
 
-#define CYPHERTEXT_SIZE 32
+#define NUM_PLAINTEXT_BLOCKS (sizeof(PLAINTEXT) / (NUM_DIGITS - NUM_PAD_DIGITS) + 1)
+#define CYPHERTEXT_SIZE (NUM_PLAINTEXT_BLOCKS * NUM_DIGITS)
 
 // If you link-in wisp-base, then you have to define some symbols.
 uint8_t usrBank[USRBANK_SIZE];
