@@ -41,6 +41,7 @@ LFLAGS += -L$(LIBMSPCONSOLE_ROOT)/bld/gcc
 endif
 
 CFLAGS += \
+	-I$(LIBMSP_ROOT)/src/include \
 	-I$(LIBMSPMATH_ROOT)/src/include \
 
 LFLAGS += \
