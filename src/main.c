@@ -340,9 +340,11 @@ void task_init()
     blink(1, BLINK_DURATION_BOOT, LED1 | LED2);
 #endif
 
+    ENERGY_GUARD_BEGIN();
     printf("Message:\r\n"); print_hex_ascii(PLAINTEXT, message_length);
     printf("Public key: exp = 0x%x  N = \r\n", pubkey.e);
     print_hex_ascii(pubkey.n, NUM_DIGITS);
+    ENERGY_GUARD_END();
 
     LOG("init: out modulus\r\n");
 
@@ -585,6 +587,7 @@ void task_print_cyphertext()
                                CH(task_mult_block_get_result, task_print_cyphertext));
     LOG("print cyphertext: len=%u\r\n", cyphertext_len);
 
+    ENERGY_GUARD_BEGIN();
     printf("Cyphertext:\r\n");
     for (i = 0; i < cyphertext_len; ++i) {
         c = *CHAN_IN1(cyphertext[i], CH(task_mult_block_get_result, task_print_cyphertext));
@@ -603,6 +606,7 @@ void task_print_cyphertext()
         }
     }
     printf("\r\n");
+    ENERGY_GUARD_END();
 
 #ifdef SHOW_COARSE_PROGRESS_ON_LED
     blink(1, BLINK_MESSAGE_DONE, LED2);
