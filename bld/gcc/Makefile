@@ -40,13 +40,17 @@ LIBS += -lmspconsole
 LFLAGS += -L$(LIBMSPCONSOLE_ROOT)/bld/gcc
 endif
 
+CFLAGS += \
+	-I$(LIBMSPMATH_ROOT)/src/include \
+
 LFLAGS += \
 	-L $(LIBCHAIN_ROOT)/bld/gcc \
+	-L $(LIBMSPMATH_ROOT)/bld/gcc \
 	-L $(WISP_BASE_ROOT)/gcc \
 
 LIBS += \
     -lchain \
 	-lwisp-base \
-	-lm \
+	-lmspmath \
 
 VPATH = ../../src

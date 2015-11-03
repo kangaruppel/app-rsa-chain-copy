@@ -923,7 +923,7 @@ void task_reduce_quotient()
     q++;
     do {
         q--;
-        qn = (uint32_t)n_div * q;
+        qn = mult16(n_div, q);
         LOG("reduce: quotient: q=%x qn=%x%x\r\n", q,
               (uint16_t)((qn >> 16) & 0xffff), (uint16_t)(qn & 0xffff));
     } while (qn > n_q);
