@@ -3,11 +3,17 @@ EXEC = rsa.out
 OBJECTS = \
 	main.o \
 
-LIBCHAIN_ENABLE_DIAGNOSTICS ?= 0
-CONFIG_PRINTF_LIB ?= libedb
 BOARD ?= wisp
+CONFIG_EDB ?= 1
+CONFIG_PRINTF_LIB ?= libedb
+CONFIG_LIBEDB_PRINTF ?= bare
 
-include $(MAKER_ROOT)/Makefile.gcc
+LIBCHAIN_ENABLE_DIAGNOSTICS ?= 0
+
+include $(MAKER_ROOT)/Makefile.clang
+include $(MAKER_ROOT)/Makefile.board
+include $(MAKER_ROOT)/Makefile.console
+include $(MAKER_ROOT)/Makefile.edb
 
 CFLAGS += \
 	-I $(LIBCHAIN_ROOT)/src/include \
@@ -20,33 +26,20 @@ ifeq ($(LIBCHAIN_ENABLE_DIAGNOSTICS),1)
 CFLAGS += -DLIBCHAIN_ENABLE_DIAGNOSTICS
 endif
 
-ifeq ($(BOARD),wisp)
-CFLAGS += -DBOARD_WISP
-endif
+LLVM_LIBS += \
+	$(LIBCHAIN_ROOT)/bld/clang/libchain.a.bc \
+	$(LIBMSPMATH_ROOT)/bld/clang/libmspmath.a.bc \
 
-ifeq ($(BOARD),mspts430)
-CFLAGS += -DBOARD_MSP_TS430
-endif
-
-ifeq ($(CONFIG_PRINTF_LIB),libedb)
-CFLAGS += -DCONFIG_LIBEDB_PRINTF
-LIBS += -ledb
-LFLAGS += -L$(LIBEDB_ROOT)/gcc
-endif
-
-ifeq ($(CONFIG_PRINTF_LIB),libmspconsole)
-CFLAGS += -DCONFIG_LIBMSPCONSOLE_PRINTF
-LIBS += -lmspconsole
-LFLAGS += -L$(LIBMSPCONSOLE_ROOT)/bld/gcc
-endif
+CFLAGS += \
+	-I$(WISP_BASE_ROOT) \
+	-I$(LIBMSP_ROOT)/src/include \
+	-I$(LIBMSPMATH_ROOT)/src/include \
 
 LFLAGS += \
-	-L $(LIBCHAIN_ROOT)/bld/gcc \
-	-L $(WISP_BASE_ROOT)/gcc \
+	-L$(LIBMSPBUILTINS_ROOT)/bld/gcc \
+	-L$(WISP_BASE_ROOT)/gcc \
 
 LIBS += \
-    -lchain \
-	-lwisp-base \
-	-lm \
+	-lmspbuiltins \
 
 VPATH = ../../src
