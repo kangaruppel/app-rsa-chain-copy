@@ -33,12 +33,19 @@
 #define printf(...)
 #endif
 
-#define NUM_DIGITS       4 // 4 * 8 = 32-bit blocks
+#include "../data/keysize.h"
+
 #define DIGIT_BITS       8 // arithmetic ops take 8-bit args produce 16-bit result
 #define DIGIT_MASK       0x00ff
+#define NUM_DIGITS       (KEY_SIZE_BITS / DIGIT_BITS)
 
 /** @brief Type large enough to store a product of two digits */
 typedef uint16_t digit_t;
+
+typedef struct {
+    uint8_t n[NUM_DIGITS]; // modulus
+    digit_t e;  // exponent
+} pubkey_t;
 
 #if NUM_DIGITS < 2
 #error The modular reduction implementation requires at least 2 digits
@@ -66,19 +73,16 @@ typedef uint16_t digit_t;
 static const uint8_t PAD_DIGITS[] = { 0x01 };
 #define NUM_PAD_DIGITS (sizeof(PAD_DIGITS) / sizeof(PAD_DIGITS[0]))
 
-// To generate a key pair:
-// $ openssl genrsa -out private.pem -3 32
-// $ openssl rsa -out keys.txt -text -in private.pem
-// Note: genrsa is superceded by genpkey, but the latter supports only >256-bit
+// To generate a key pair: see scripts/
 
-// NOTE: Restriction: M >= 0x80000000 (i.e. MSB set). To lift restriction need
-// to implement normalization: left shift until MSB is set, to reverse, right
-// shift the remainder.
-static const uint8_t N[] = { 0xaa, 0x49, 0x6a, 0x45}; // modulus (see note below)
-static const digit_t E = 0x3; // public exponent
-// private exponent for the above: 0x71853073
+// modulus: byte order: LSB to MSB, constraint MSB>=0x80
+static __ro_nv const pubkey_t pubkey = {
+#include "../data/key.txt"
+};
 
-static const unsigned char PLAINTEXT[] = "Hello, World!";
+static __ro_nv const unsigned char PLAINTEXT[] =
+#include "../data/plaintext.txt"
+;
 
 #define NUM_PLAINTEXT_BLOCKS (sizeof(PLAINTEXT) / (NUM_DIGITS - NUM_PAD_DIGITS) + 1)
 #define CYPHERTEXT_SIZE (NUM_PLAINTEXT_BLOCKS * NUM_DIGITS)
@@ -326,6 +330,7 @@ static void print_hex_ascii(const uint8_t *m, unsigned len)
 void task_init()
 {
     int i;
+    unsigned message_length = sizeof(PLAINTEXT) - 1; // skip the terminating null byte
 
     LOG("init\r\n");
 
@@ -333,24 +338,28 @@ void task_init()
     blink(1, BLINK_DURATION_BOOT, LED1 | LED2);
 #endif
 
-    printf("Message:\r\n"); print_hex_ascii(PLAINTEXT, sizeof(PLAINTEXT));
+    printf("Message:\r\n"); print_hex_ascii(PLAINTEXT, message_length);
+    printf("Public key: exp = 0x%x  N = \r\n", pubkey.e);
+    print_hex_ascii(pubkey.n, NUM_DIGITS);
 
-    printf("Public key: N = ");
-    for (i = 0; i < NUM_DIGITS; ++i)
-        printf("%x ", N[i]);
-    printf("  E = %x\r\n", E);
+    LOG("init: out modulus\r\n");
 
+    // TODO: consider passing pubkey as a structure type
     for (i = 0; i < NUM_DIGITS; ++i) {
-        CHAN_OUT(N[i], N[NUM_DIGITS - 1 - i], MC_OUT_CH(ch_modulus, task_init,
+        CHAN_OUT(N[i], pubkey.n[i], MC_OUT_CH(ch_modulus, task_init,
                  task_reduce_normalizable, task_reduce_normalize,
                  task_reduce_m_divisor, task_reduce_quotient,
                  task_reduce_multiply, task_reduce_add));
     }
 
-    CHAN_OUT(E, E, CH(task_init, task_pad));
-    CHAN_OUT(message_length, sizeof(PLAINTEXT), CH(task_init, task_pad));
+    LOG("init: out exp\r\n");
+
+    CHAN_OUT(E, pubkey.e, CH(task_init, task_pad));
+    CHAN_OUT(message_length, message_length, CH(task_init, task_pad));
     CHAN_OUT(block_offset, 0, CH(task_init, task_pad));
     CHAN_OUT(cyphertext_len, 0, CH(task_init, task_mult_block_get_result));
+
+    LOG("init: done\r\n");
 
     TRANSITION_TO(task_pad);
 }
