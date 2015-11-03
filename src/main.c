@@ -284,7 +284,7 @@ void init()
     GPIO(PORT_LED_3, OUT) |= BIT(PIN_LED_3);
 #endif
 
-    printf("rsa app booted\r\n");
+    PRINTF(".%u.\r\n", curctx->task->idx);
 }
 
 #ifdef SHOW_PROGRESS_ON_LED
