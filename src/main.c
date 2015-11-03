@@ -5,7 +5,9 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#include <libmsp/mem.h>
 #include <wisp-base.h>
+#include <msp-math.h>
 
 #include <libchain/chain.h>
 
