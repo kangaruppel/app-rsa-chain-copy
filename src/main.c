@@ -378,7 +378,7 @@ void task_pad()
     LOG("\r\n");
 
     for (i = 0; i < NUM_DIGITS - NUM_PAD_DIGITS; ++i) {
-        m = (block_offset + i < message_length) ? PLAINTEXT[block_offset + i] : 0x00;
+        m = (block_offset + i < message_length) ? PLAINTEXT[block_offset + i] : 0xFF;
         CHAN_OUT(base[i], m, MC_OUT_CH(ch_base, task_pad, task_mult_block, task_square_base));
     }
     for (i = NUM_DIGITS - NUM_PAD_DIGITS; i < NUM_DIGITS; ++i) {
