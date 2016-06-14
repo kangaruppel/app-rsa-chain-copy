@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#include <libio/log.h>
 #include <libmsp/mem.h>
 #include <wisp-base.h>
 #include <msp-math.h>
@@ -18,22 +19,6 @@
 #include "pins.h"
 
 // #define VERBOSE
-
-#ifdef VERBOSE
-#define LOG printf
-#else
-#define LOG(...)
-#endif // VERBOSE
-
-#if defined(CONFIG_LIBEDB_PRINTF_EIF)
-#define printf(...) PRINTF(__VA_ARGS__)
-#elif defined(CONFIG_LIBEDB_PRINTF_BARE)
-#define printf(...) BARE_PRINTF(__VA_ARGS__)
-#elif defined(CONFIG_LIBMSPCONSOLE_PRINTF)
-// nothing to to do
-#else
-#define printf(...)
-#endif
 
 #include "../data/keysize.h"
 
