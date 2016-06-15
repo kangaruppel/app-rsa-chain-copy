@@ -80,7 +80,7 @@ uint8_t usrBank[USRBANK_SIZE];
 struct msg_mult_mod_args {
     CHAN_FIELD_ARRAY(digit_t, A, NUM_DIGITS);
     CHAN_FIELD_ARRAY(digit_t, B, NUM_DIGITS);
-    CHAN_FIELD(const task_t*, next_task);
+    CHAN_FIELD(task_t*, next_task);
 };
 
 struct msg_mult_mod_result {
@@ -97,7 +97,7 @@ struct msg_mult {
 struct msg_reduce {
     CHAN_FIELD_ARRAY(digit_t, N, NUM_DIGITS);
     CHAN_FIELD_ARRAY(digit_t, M, NUM_DIGITS);
-    CHAN_FIELD(const task_t*, next_task);
+    CHAN_FIELD(task_t*, next_task);
 };
 
 struct msg_modulus {
@@ -108,14 +108,37 @@ struct msg_exponent {
     CHAN_FIELD(digit_t, E);
 };
 
+struct msg_self_exponent {
+    SELF_CHAN_FIELD(digit_t, E);
+};
+#define FIELD_INIT_msg_self_exponent {\
+    SELF_FIELD_INITIALIZER \
+}
+
 struct msg_mult_digit {
     CHAN_FIELD(unsigned, digit);
     CHAN_FIELD(unsigned, carry);
 };
 
+struct msg_self_mult_digit {
+    SELF_CHAN_FIELD(unsigned, digit);
+    SELF_CHAN_FIELD(unsigned, carry);
+};
+#define FIELD_INIT_msg_self_mult_digit {\
+    SELF_FIELD_INITIALIZER, \
+    SELF_FIELD_INITIALIZER \
+}
+
 struct msg_product {
     CHAN_FIELD_ARRAY(digit_t, product, NUM_DIGITS * 2);
 };
+
+struct msg_self_product {
+    SELF_CHAN_FIELD_ARRAY(digit_t, product, NUM_DIGITS * 2);
+};
+#define FIELD_INIT_msg_self_product {
+    SELF_FIELD_ARRAY_INITIALIZER(NUM_DIGITS * 2)
+}
 
 struct msg_base {
     CHAN_FIELD_ARRAY(digit_t, base, NUM_DIGITS * 2);
@@ -134,6 +157,13 @@ struct msg_cyphertext_len {
     CHAN_FIELD(unsigned, cyphertext_len);
 };
 
+struct msg_self_cyphertext_len {
+    SELF_CHAN_FIELD(unsigned, cyphertext_len);
+};
+#define FIELD_INIT_msg_self_cyphertext_len {\
+    SELF_FIELD_INITIALIZER \
+}
+
 struct msg_cyphertext {
     CHAN_FIELD_ARRAY(digit_t, cyphertext, CYPHERTEXT_SIZE);
     CHAN_FIELD(unsigned, cyphertext_len);
@@ -148,6 +178,13 @@ struct msg_digit {
     CHAN_FIELD(unsigned, digit);
 };
 
+struct msg_self_digit {
+    SELF_CHAN_FIELD(unsigned, digit);
+};
+#define FIELD_INIT_msg_self_digit {\
+    SELF_FIELD_INITIALIZER \
+}
+
 struct msg_offset {
     CHAN_FIELD(unsigned, offset);
 };
@@ -155,6 +192,13 @@ struct msg_offset {
 struct msg_block_offset {
     CHAN_FIELD(unsigned, block_offset);
 };
+
+struct msg_self_block_offset {
+    SELF_CHAN_FIELD(unsigned, block_offset);
+};
+#define FIELD_INIT_msg_self_block_offset {\
+    SELF_FIELD_INITIALIZER \
+}
 
 struct msg_message_info {
     CHAN_FIELD(unsigned, message_length);
@@ -168,7 +212,7 @@ struct msg_quotient {
 
 struct msg_print {
     CHAN_FIELD_ARRAY(digit_t, product, NUM_DIGITS * 2);
-    CHAN_FIELD(const task_t*, next_task);
+    CHAN_FIELD(task_t*, next_task);
 };
 
 TASK(1,  task_init)
@@ -197,12 +241,12 @@ CHANNEL(task_init, task_pad, msg_message_info);
 CHANNEL(task_init, task_mult_block_get_result, msg_cyphertext_len);
 CHANNEL(task_pad, task_exp, msg_exponent);
 CHANNEL(task_pad, task_mult_block, msg_block);
-SELF_CHANNEL(task_pad, msg_block_offset);
+SELF_CHANNEL(task_pad, msg_self_block_offset);
 MULTICAST_CHANNEL(msg_base, ch_base, task_pad, task_mult_block, task_square_base);
-SELF_CHANNEL(task_exp, msg_exponent);
+SELF_CHANNEL(task_exp, msg_self_exponent);
 CHANNEL(task_exp, task_mult_block_get_result, msg_exponent);
 CHANNEL(task_mult_block_get_result, task_mult_block, msg_block);
-SELF_CHANNEL(task_mult_block_get_result, msg_cyphertext_len);
+SELF_CHANNEL(task_mult_block_get_result, msg_self_cyphertext_len);
 CHANNEL(task_mult_block_get_result, task_print_cyphertext, msg_cyphertext);
 MULTICAST_CHANNEL(msg_base, ch_square_base, task_square_base_get_result,
                   task_square_base, task_mult_block);
@@ -212,7 +256,7 @@ CHANNEL(task_mult_mod, task_mult, msg_mult);
 MULTICAST_CHANNEL(msg_modulus, ch_modulus, task_init,
                   task_reduce_normalizable, task_reduce_normalize,
                   task_reduce_n_divisor, task_reduce_quotient, task_reduce_multiply);
-SELF_CHANNEL(task_mult, msg_mult_digit);
+SELF_CHANNEL(task_mult, msg_self_mult_digit);
 MULTICAST_CHANNEL(msg_product, ch_mult_product, task_mult,
                   task_reduce_normalizable, task_reduce_normalize,
                   task_reduce_quotient, task_reduce_compare,
@@ -232,9 +276,9 @@ MULTICAST_CHANNEL(msg_product, ch_normalized_product, task_reduce_normalize,
 CHANNEL(task_reduce_add, task_reduce_subtract, msg_product);
 MULTICAST_CHANNEL(msg_product, ch_reduce_subtract_product, task_reduce_subtract,
                   task_reduce_quotient, task_reduce_compare, task_reduce_add);
-SELF_CHANNEL(task_reduce_subtract, msg_product);
+SELF_CHANNEL(task_reduce_subtract, msg_self_product);
 CHANNEL(task_reduce_n_divisor, task_reduce_quotient, msg_divisor);
-SELF_CHANNEL(task_reduce_quotient, msg_digit);
+SELF_CHANNEL(task_reduce_quotient, msg_self_digit);
 MULTICAST_CHANNEL(msg_digit, ch_reduce_digit, task_reduce_quotient,
                   task_reduce_multiply, task_reduce_compare,
                   task_reduce_add, task_reduce_subtract);
@@ -335,7 +379,7 @@ void task_init()
 
     // TODO: consider passing pubkey as a structure type
     for (i = 0; i < NUM_DIGITS; ++i) {
-        CHAN_OUT(N[i], pubkey.n[i], MC_OUT_CH(ch_modulus, task_init,
+        CHAN_OUT1(digit_t, N[i], pubkey.n[i], MC_OUT_CH(ch_modulus, task_init,
                  task_reduce_normalizable, task_reduce_normalize,
                  task_reduce_m_divisor, task_reduce_quotient,
                  task_reduce_multiply, task_reduce_add));
@@ -343,10 +387,11 @@ void task_init()
 
     LOG("init: out exp\r\n");
 
-    CHAN_OUT(E, pubkey.e, CH(task_init, task_pad));
-    CHAN_OUT(message_length, message_length, CH(task_init, task_pad));
-    CHAN_OUT(block_offset, 0, CH(task_init, task_pad));
-    CHAN_OUT(cyphertext_len, 0, CH(task_init, task_mult_block_get_result));
+    unsigned zero = 0;
+    CHAN_OUT1(digit_t, E, pubkey.e, CH(task_init, task_pad));
+    CHAN_OUT1(unsigned, message_length, message_length, CH(task_init, task_pad));
+    CHAN_OUT1(unsigned, block_offset, zero, CH(task_init, task_pad));
+    CHAN_OUT1(unsigned, cyphertext_len, zero, CH(task_init, task_mult_block_get_result));
 
     LOG("init: done\r\n");
 
@@ -363,10 +408,10 @@ void task_pad()
     GPIO(PORT_LED_1, OUT) &= ~BIT(PIN_LED_1);
 #endif
 
-    block_offset = *CHAN_IN2(block_offset, CH(task_init, task_pad),
+    block_offset = *CHAN_IN2(unsigned, block_offset, CH(task_init, task_pad),
                                            SELF_IN_CH(task_pad));
 
-    message_length = *CHAN_IN1(message_length, CH(task_init, task_pad));
+    message_length = *CHAN_IN1(unsigned, message_length, CH(task_init, task_pad));
 
     LOG("pad: len=%u offset=%u\r\n", message_length, block_offset);
 
@@ -385,22 +430,24 @@ void task_pad()
 
     for (i = 0; i < NUM_DIGITS - NUM_PAD_DIGITS; ++i) {
         m = (block_offset + i < message_length) ? PLAINTEXT[block_offset + i] : 0xFF;
-        CHAN_OUT(base[i], m, MC_OUT_CH(ch_base, task_pad, task_mult_block, task_square_base));
+        CHAN_OUT1(digit_t, base[i], m, MC_OUT_CH(ch_base, task_pad, task_mult_block, task_square_base));
     }
     for (i = NUM_DIGITS - NUM_PAD_DIGITS; i < NUM_DIGITS; ++i) {
-        CHAN_OUT(base[i], PAD_DIGITS[i],
+        CHAN_OUT1(digit_t, base[i], PAD_DIGITS[i],
                  MC_OUT_CH(ch_base, task_pad, task_mult_block, task_square_base));
     }
 
-    CHAN_OUT(block[0], 1, CH(task_pad, task_mult_block));
+    digit_t one = 1;
+    digit_t zero = 0;
+    CHAN_OUT1(digit_t, block[0], one, CH(task_pad, task_mult_block));
     for (i = 1; i < NUM_DIGITS; ++i)
-        CHAN_OUT(block[i], 0, CH(task_pad, task_mult_block));
+        CHAN_OUT1(digit_t, block[i], zero, CH(task_pad, task_mult_block));
 
-    e = *CHAN_IN1(E, CH(task_init, task_pad));
-    CHAN_OUT(E, e, CH(task_pad, task_exp));
+    e = *CHAN_IN1(digit_t, E, CH(task_init, task_pad));
+    CHAN_OUT1(digit_t, E, e, CH(task_pad, task_exp));
 
     block_offset += NUM_DIGITS - NUM_PAD_DIGITS;
-    CHAN_OUT(block_offset, block_offset, SELF_OUT_CH(task_pad));
+    CHAN_OUT1(unsigned, block_offset, block_offset, SELF_OUT_CH(task_pad));
 
 #ifdef SHOW_COARSE_PROGRESS_ON_LED
     GPIO(PORT_LED_1, OUT) |= BIT(PIN_LED_1);
@@ -413,7 +460,7 @@ void task_exp()
     digit_t e;
     bool multiply;
 
-    e = *CHAN_IN2(E, CH(task_pad, task_exp), SELF_IN_CH(task_exp));
+    e = *CHAN_IN2(digit_t, E, CH(task_pad, task_exp), SELF_IN_CH(task_exp));
     LOG("exp: e=%x\r\n", e);
 
     // ASSERT: e > 0
@@ -421,8 +468,8 @@ void task_exp()
     multiply = e & 0x1;
 
     e >>= 1;
-    CHAN_OUT(E, e, SELF_OUT_CH(task_exp));
-    CHAN_OUT(E, e, CH(task_exp, task_mult_block_get_result));
+    CHAN_OUT1(digit_t, E, e, SELF_OUT_CH(task_exp));
+    CHAN_OUT1(digit_t, E, e, CH(task_exp, task_mult_block_get_result));
 
     if (multiply) {
         TRANSITION_TO(task_mult_block);
@@ -442,17 +489,17 @@ void task_mult_block()
 
     // TODO: pass args to mult: message * base
     for (i = 0; i < NUM_DIGITS; ++i) {
-        b = *CHAN_IN2(base[i], MC_IN_CH(ch_base, task_pad, task_mult_block),
+        b = *CHAN_IN2(digit_t, base[i], MC_IN_CH(ch_base, task_pad, task_mult_block),
                                MC_IN_CH(ch_square_base, task_square_base_get_result, task_mult_block));
-        CHAN_OUT(A[i], b, CALL_CH(ch_mult_mod));
+        CHAN_OUT1(digit_t, A[i], b, CALL_CH(ch_mult_mod));
 
-        m = *CHAN_IN2(block[i], CH(task_pad, task_mult_block),
+        m = *CHAN_IN2(digit_t, block[i], CH(task_pad, task_mult_block),
                                 CH(task_mult_block_get_result, task_mult_block));
-        CHAN_OUT(B[i], m, CALL_CH(ch_mult_mod));
+        CHAN_OUT1(digit_t, B[i], m, CALL_CH(ch_mult_mod));
 
         LOG("mult block: a[%u]=%x b[%u]=%x\r\n", i, b, i, m);
     }
-    CHAN_OUT(next_task, TASK_REF(task_mult_block_get_result), CALL_CH(ch_mult_mod));
+    CHAN_OUT1(task_t*, next_task, TASK_REF(task_mult_block_get_result), CALL_CH(ch_mult_mod));
     TRANSITION_TO(task_mult_mod);
 }
 
@@ -464,29 +511,29 @@ void task_mult_block_get_result()
 
     LOG("mult block get result: block: ");
     for (i = NUM_DIGITS - 1; i >= 0; --i) { // reverse for printing
-        m = *CHAN_IN1(product[i], RET_CH(ch_mult_mod));
+        m = *CHAN_IN1(digit_t, product[i], RET_CH(ch_mult_mod));
         LOG("%x ", m);
-        CHAN_OUT(block[i], m, CH(task_mult_block_get_result, task_mult_block));
+        CHAN_OUT1(digit_t, block[i], m, CH(task_mult_block_get_result, task_mult_block));
     }
     LOG("\r\n");
 
-    e = *CHAN_IN1(E, CH(task_exp, task_mult_block_get_result));
+    e = *CHAN_IN1(digit_t, E, CH(task_exp, task_mult_block_get_result));
 
     // On last iteration we don't need to square base
     if (e > 0) {
 
         // TODO: current implementation restricts us to send only to the next instantiation
         // of self, so for now, as a workaround, we proxy the value in every instantiation
-        cyphertext_len = *CHAN_IN2(cyphertext_len,
+        cyphertext_len = *CHAN_IN2(unsigned, cyphertext_len,
                                    CH(task_init, task_mult_block_get_result),
                                    SELF_IN_CH(task_mult_block_get_result));
-        CHAN_OUT(cyphertext_len, cyphertext_len, SELF_OUT_CH(task_mult_block_get_result));
+        CHAN_OUT1(unsigned, cyphertext_len, cyphertext_len, SELF_OUT_CH(task_mult_block_get_result));
 
         TRANSITION_TO(task_square_base);
 
     } else { // block is finished, save it
 
-        cyphertext_len = *CHAN_IN2(cyphertext_len,
+        cyphertext_len = *CHAN_IN2(unsigned, cyphertext_len,
                                    CH(task_init, task_mult_block_get_result),
                                    SELF_IN_CH(task_mult_block_get_result));
         LOG("mult block get result: cyphertext len=%u\r\n", cyphertext_len);
@@ -497,8 +544,8 @@ void task_mult_block_get_result()
                 // TODO: we could save this read by rolling this loop into the
                 // above loop, by paying with an extra conditional in the
                 // above-loop.
-                m = *CHAN_IN1(product[i], RET_CH(ch_mult_mod));
-                CHAN_OUT(cyphertext[cyphertext_len], m,
+                m = *CHAN_IN1(digit_t, product[i], RET_CH(ch_mult_mod));
+                CHAN_OUT1(digit_t, cyphertext[cyphertext_len], m,
                          CH(task_mult_block_get_result, task_print_cyphertext));
                 cyphertext_len++;
             }
@@ -511,8 +558,8 @@ void task_mult_block_get_result()
 
         // TODO: implementation limitation: cannot multicast and send to self
         // in the same macro
-        CHAN_OUT(cyphertext_len, cyphertext_len, SELF_OUT_CH(task_mult_block_get_result));
-        CHAN_OUT(cyphertext_len, cyphertext_len,
+        CHAN_OUT1(unsigned, cyphertext_len, cyphertext_len, SELF_OUT_CH(task_mult_block_get_result));
+        CHAN_OUT1(unsigned, cyphertext_len, cyphertext_len,
                  CH(task_mult_block_get_result, task_print_cyphertext));
 
         LOG("mult block get results: block done, cyphertext_len=%u\r\n", cyphertext_len);
