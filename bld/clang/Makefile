@@ -1,18 +1,12 @@
-EXEC = rsa.out
+EXEC = cuckoo.out
 
 OBJECTS = \
 	main.o \
 
-# We are using offsetof(type, field[index]), which is an extension
-CFLAGS += \
-	-Wno-extended-offsetof \
-
-BOARD ?= wisp
-CONFIG_EDB ?= 1
-CONFIG_PRINTF_LIB ?= libedb
+BOARD ?= mspts430
+CONFIG_EDB ?= 0
+CONFIG_PRINTF_LIB ?= libmspconsole
 CONFIG_LIBEDB_PRINTF ?= bare
-
-LIBCHAIN_ENABLE_DIAGNOSTICS ?= 0
 
 include $(MAKER_ROOT)/Makefile.clang
 include $(MAKER_ROOT)/Makefile.board
