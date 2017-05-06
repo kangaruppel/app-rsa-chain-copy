@@ -19,6 +19,9 @@
 #include "pins.h"
 
 // #define VERBOSE
+//Include thread and mutex headers
+#include <libchain/thread.h>
+#include <libchain/mutex.h> 
 
 #include "../data/keysize.h"
 
@@ -368,7 +371,7 @@ void task_init()
     unsigned message_length = sizeof(PLAINTEXT) - 1; // skip the terminating null byte
 
     LOG("init\r\n");
-
+    thread_init();  
 #ifdef SHOW_COARSE_PROGRESS_ON_LED
     blink(1, BLINK_DURATION_BOOT, LED1 | LED2);
 #endif
@@ -397,7 +400,7 @@ void task_init()
 
     LOG("init: done\r\n");
 
-    TRANSITION_TO(task_pad);
+    TRANSITION_TO_MT(task_pad);
 }
 
 void task_pad()
@@ -419,7 +422,7 @@ void task_pad()
 
     if (block_offset >= message_length) {
         LOG("pad: message done\r\n");
-        TRANSITION_TO(task_print_cyphertext);
+        TRANSITION_TO_MT(task_print_cyphertext);
     }
 
     LOG("process block: padded block at offset=%u: ", block_offset);
@@ -454,7 +457,7 @@ void task_pad()
 #ifdef SHOW_COARSE_PROGRESS_ON_LED
     GPIO(PORT_LED_1, OUT) |= BIT(PIN_LED_1);
 #endif
-    TRANSITION_TO(task_exp);
+    TRANSITION_TO_MT(task_exp);
 }
 
 void task_exp()
@@ -474,9 +477,9 @@ void task_exp()
     CHAN_OUT1(digit_t, E, e, CH(task_exp, task_mult_block_get_result));
 
     if (multiply) {
-        TRANSITION_TO(task_mult_block);
+        TRANSITION_TO_MT(task_mult_block);
     } else {
-        TRANSITION_TO(task_square_base);
+        TRANSITION_TO_MT(task_square_base);
     }
 }
 
@@ -503,7 +506,7 @@ void task_mult_block()
     }
     const task_t *next_task = TASK_REF(task_mult_block_get_result);  
     CHAN_OUT1(task_t*, next_task, next_task , CALL_CH(ch_mult_mod));
-    TRANSITION_TO(task_mult_mod);
+    TRANSITION_TO_MT(task_mult_mod);
 }
 
 void task_mult_block_get_result()
@@ -532,7 +535,7 @@ void task_mult_block_get_result()
                                    SELF_IN_CH(task_mult_block_get_result));
         CHAN_OUT1(unsigned, cyphertext_len, cyphertext_len, SELF_OUT_CH(task_mult_block_get_result));
 
-        TRANSITION_TO(task_square_base);
+        TRANSITION_TO_MT(task_square_base);
 
     } else { // block is finished, save it
 
@@ -566,7 +569,7 @@ void task_mult_block_get_result()
                  CH(task_mult_block_get_result, task_print_cyphertext));
 
         LOG("mult block get results: block done, cyphertext_len=%u\r\n", cyphertext_len);
-        TRANSITION_TO(task_pad);
+        TRANSITION_TO_MT(task_pad);
     }
 
 }
@@ -590,7 +593,7 @@ void task_square_base()
     }
     const task_t *next_task =TASK_REF(task_square_base_get_result);  
     CHAN_OUT1(task_t *, next_task, next_task , CALL_CH(ch_mult_mod));
-    TRANSITION_TO(task_mult_mod);
+    TRANSITION_TO_MT(task_mult_mod);
 }
 
 // TODO: is there opportunity for special zero-copy optimization here
@@ -608,7 +611,7 @@ void task_square_base_get_result()
                                      task_square_base, task_mult_block));
     }
 
-    TRANSITION_TO(task_exp);
+    TRANSITION_TO_MT(task_exp);
 }
 
 void task_print_cyphertext()
@@ -645,7 +648,7 @@ void task_print_cyphertext()
     blink(1, BLINK_MESSAGE_DONE, LED2);
 #endif
 
-    TRANSITION_TO(task_init);
+    TRANSITION_TO_MT(task_init);
 }
 
 // TODO: this task also looks like a proxy: is it avoidable?
@@ -669,7 +672,7 @@ void task_mult_mod()
     CHAN_OUT1(unsigned, digit, tmp, CH(task_mult_mod, task_mult));
     CHAN_OUT1(unsigned, carry, tmp, CH(task_mult_mod, task_mult));
 
-    TRANSITION_TO(task_mult);
+    TRANSITION_TO_MT(task_mult);
 }
 
 void task_mult()
@@ -719,11 +722,11 @@ void task_mult()
     if (digit < NUM_DIGITS * 2) {
         CHAN_OUT1(digit_t, carry, c, SELF_OUT_CH(task_mult));
         CHAN_OUT1(int, digit, digit, SELF_OUT_CH(task_mult));
-        TRANSITION_TO(task_mult);
+        TRANSITION_TO_MT(task_mult);
     } else {
         const task_t *next_task = TASK_REF(task_reduce_digits);  
         CHAN_OUT1(task_t *, next_task, next_task  , CALL_CH(ch_print_product));
-        TRANSITION_TO(task_print_product);
+        TRANSITION_TO_MT(task_print_product);
     }
 }
 
@@ -744,7 +747,7 @@ void task_reduce_digits()
 
     if (m == 0) {
         LOG("reduce: digits: all digits of message are zero\r\n");
-        TRANSITION_TO(task_init);
+        TRANSITION_TO_MT(task_init);
     }
     LOG("reduce: digits: d = %u\r\n", d);
 
@@ -752,7 +755,7 @@ void task_reduce_digits()
                                  task_reduce_normalizable, task_reduce_normalize,
                                  task_reduce_quotient));
 
-    TRANSITION_TO(task_reduce_normalizable);
+    TRANSITION_TO_MT(task_reduce_normalizable);
 }
 
 void task_reduce_normalizable()
@@ -824,15 +827,15 @@ void task_reduce_normalizable()
         }
 
         const task_t *next_task = *CHAN_IN1(task_t *,next_task, CALL_CH(ch_mult_mod));
-        transition_to(next_task);
+        transition_to_mt(next_task);
     }
 
     LOG("normalizable: %u\r\n", normalizable);
 
     if (normalizable) {
-        TRANSITION_TO(task_reduce_normalize);
+        TRANSITION_TO_MT(task_reduce_normalize);
     } else {
-        TRANSITION_TO(task_reduce_n_divisor);
+        TRANSITION_TO_MT(task_reduce_n_divisor);
     }
 }
 
@@ -900,7 +903,7 @@ void task_reduce_normalize()
     }
 
     CHAN_OUT1(task_t *, next_task, next_task, CALL_CH(ch_print_product));
-    TRANSITION_TO(task_print_product);
+    TRANSITION_TO_MT(task_print_product);
 }
 
 void task_reduce_n_divisor()
@@ -925,7 +928,7 @@ void task_reduce_n_divisor()
 
     CHAN_OUT1(digit_t, n_div, n_div, CH(task_reduce_n_divisor, task_reduce_quotient));
 
-    TRANSITION_TO(task_reduce_quotient);
+    TRANSITION_TO_MT(task_reduce_quotient);
 }
 
 void task_reduce_quotient()
@@ -1011,7 +1014,7 @@ void task_reduce_quotient()
     d--;
     CHAN_OUT1(unsigned, digit, d, SELF_OUT_CH(task_reduce_quotient));
 
-    TRANSITION_TO(task_reduce_multiply);
+    TRANSITION_TO_MT(task_reduce_multiply);
 }
 
 // NOTE: this is multiplication by one digit, hence not re-using mult task
@@ -1075,7 +1078,7 @@ void task_reduce_multiply()
     }
     const task_t *next_task =TASK_REF(task_reduce_compare);  
     CHAN_OUT1(task_t *, next_task, next_task , CALL_CH(ch_print_product));
-    TRANSITION_TO(task_print_product);
+    TRANSITION_TO_MT(task_print_product);
 }
 
 void task_reduce_compare()
@@ -1119,9 +1122,9 @@ void task_reduce_compare()
     LOG("reduce: compare: relation %c\r\n", relation);
 
     if (relation == '<') {
-        TRANSITION_TO(task_reduce_add);
+        TRANSITION_TO_MT(task_reduce_add);
     } else {
-        TRANSITION_TO(task_reduce_subtract);
+        TRANSITION_TO_MT(task_reduce_subtract);
     }
 }
 
@@ -1194,7 +1197,7 @@ void task_reduce_add()
     }
     const task_t *next_task =TASK_REF(task_reduce_subtract);  
     CHAN_OUT1(task_t *, next_task, next_task , CALL_CH(ch_print_product));
-    TRANSITION_TO(task_print_product);
+    TRANSITION_TO_MT(task_print_product);
 }
 
 // TODO: re-use task_reduce_normalize?
@@ -1279,7 +1282,7 @@ void task_reduce_subtract()
         CHAN_OUT1(task_t *, next_task, next_task, CALL_CH(ch_print_product));
     }
 
-    TRANSITION_TO(task_print_product);
+    TRANSITION_TO_MT(task_print_product);
 }
 
 // TODO: eliminate from control graph when not verbose
@@ -1299,7 +1302,7 @@ void task_print_product()
 #endif
 
     next_task = *CHAN_IN1(task_t *, next_task, CALL_CH(ch_print_product));
-    transition_to(next_task);
+    transition_to_mt(next_task);
 }
 
 ENTRY_TASK(task_init)
