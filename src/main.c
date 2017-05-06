@@ -1195,6 +1195,7 @@ void task_reduce_add()
         CHAN_OUT1(digit_t, product[i], r, CALL_CH(ch_print_product));
     }
     const task_t *next_task =TASK_REF(task_reduce_subtract);  
+    LOG("Go to %u after printing\r\n",next_task); 
     CHAN_OUT1(task_t *, next_task, next_task , CALL_CH(ch_print_product));
     TRANSITION_TO_MT(task_print_product);
 }
