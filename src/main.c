@@ -348,20 +348,20 @@ static void blink(unsigned count, uint32_t duration, unsigned leds)
 static void print_hex_ascii(const uint8_t *m, unsigned len)
 {
     int i, j;
-
+    LOG("printing ascii: "); 
     for (i = 0; i < len; i += PRINT_HEX_ASCII_COLS) {
         for (j = 0; j < PRINT_HEX_ASCII_COLS && i + j < len; ++j)
-            printf("%02x ", m[i + j]);
+            LOG("%02x ", m[i + j]);
         for (; j < PRINT_HEX_ASCII_COLS; ++j)
-            printf("   ");
-        printf(" ");
+            LOG("   ");
+        LOG(" ");
         for (j = 0; j < PRINT_HEX_ASCII_COLS && i + j < len; ++j) {
             char c = m[i + j];
             if (!(32 <= c && c <= 127)) // not printable
                 c = '.';
-            printf("%c", c);
+            LOG("%c", c);
         }
-        printf("\r\n");
+        LOG("\r\n");
     }
 }
 
@@ -376,9 +376,8 @@ void task_init()
     blink(1, BLINK_DURATION_BOOT, LED1 | LED2);
 #endif
 
-    printf("Message:\r\n"); print_hex_ascii(PLAINTEXT, message_length);
-    printf("Public key: exp = 0x%x  N = \r\n", pubkey.e);
-    print_hex_ascii(pubkey.n, NUM_DIGITS);
+    LOG("Message:\r\n"); print_hex_ascii(PLAINTEXT, message_length);
+    LOG("Public key: exp = 0x%x  N = \r\n", pubkey.e);
 
     LOG("init: out modulus\r\n");
 
