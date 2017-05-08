@@ -644,7 +644,7 @@ void task_print_cyphertext()
 #ifdef SHOW_COARSE_PROGRESS_ON_LED
     blink(1, BLINK_MESSAGE_DONE, LED2);
 #endif
-
+    while(1); 
     TRANSITION_TO(task_init);
 }
 
