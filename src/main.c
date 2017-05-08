@@ -1285,20 +1285,27 @@ void task_reduce_subtract()
     TRANSITION_TO_MT(task_print_product);
 }
 
+digit_t check_seq[10] = {0x9, 0x84, 0x90, 0x34, 0xB9, 0X30, 0XDF, 0XA7, 0X8A, 0XA5}; 
+
 // TODO: eliminate from control graph when not verbose
 void task_print_product()
 {
     const task_t* next_task;
 #ifdef VERBOSE
-    int i;
+    int i,j,done;
     digit_t m;
-
+    done = 1;     
     LOG("print: P=");
-    for (i = (NUM_DIGITS * 2) - 1; i >= 0; --i) {
+    for (i = (NUM_DIGITS * 2) - 1, j = 0; i >= 0; --i,j++) {
         m = *CHAN_IN1(digit_t, product[i], CALL_CH(ch_print_product));
         LOG("%x ", m);
+       // if( j < 10 && m !=check_seq[j])
+       //   done = 0; 
     }
     LOG("\r\n");
+/*    if(done && j > 9){
+      LOG("Received done sequence!!\r\n"); 
+    }*/
 #endif
 
     next_task = *CHAN_IN1(task_t *, next_task, CALL_CH(ch_print_product));
