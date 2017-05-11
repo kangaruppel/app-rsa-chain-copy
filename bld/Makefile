@@ -1,7 +1,8 @@
 EXEC = rsa
 
 OBJECTS = \
-	main.o \
+  linear_combo.o
+#	main_mt.o \
 
 DEPS += \
 	libchain \
